@@ -65,7 +65,17 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $version=(Get-Content manifest.json -Raw | ConvertFrom-Json).version
+          # Align older release titles too; assets and tags remain unchanged.
+          $releases=gh release list --limit 1000 --json tagName,name --repo "$env:GITHUB_REPOSITORY"
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          foreach ($release in ($releases | ConvertFrom-Json)) {
+            if ($release.name -match ' - installer pilota$') {
+              $title=$release.name -replace ' - installer pilota$',''
+              gh release edit "$($release.tagName)" --title "$title" --repo "$env:GITHUB_REPOSITORY"
+              if ($LASTEXITCODE) { exit $LASTEXITCODE }
+            }
+          }
           gh release view "v$version" --repo "$env:GITHUB_REPOSITORY" 2>$null
           if ($LASTEXITCODE -eq 0) { Write-Host 'Release already exists; no asset overwritten'; exit 0 }
-          gh release create "v$version" outputs/SegretarioMMG-Setup-*.exe outputs/segretario-mmg-update.zip outputs/*.sha256 outputs/LEGGIMI-INSTALLER.md --target "$env:GITHUB_SHA" --title "Segretario MMG $version - installer pilota" --notes-file installer/RELEASE-NOTES.md --repo "$env:GITHUB_REPOSITORY"
+          gh release create "v$version" outputs/SegretarioMMG-Setup-*.exe outputs/segretario-mmg-update.zip outputs/*.sha256 outputs/LEGGIMI-INSTALLER.md --target "$env:GITHUB_SHA" --title "Segretario MMG $version" --notes-file installer/RELEASE-NOTES.md --repo "$env:GITHUB_REPOSITORY"
           exit $LASTEXITCODE
