@@ -1,3 +1,8 @@
+Segretario MMG v0.16.11
+
+- Prescrizione da lista: click sulla proposta esatta prima del Tab, attesa dello stato acquisito, recupero del menu ricostruito nella stessa ricerca.
+- Diagnostica ampliata con tentativi, fasi, stato campo/menu, scheda in background, conferma locale e verifica riga. Nessun nome esame, codice o valore incluso.
+
 Segretario MMG v0.16.10
 
 - Referto non prescritto: lettura diretta estesa a diversi esami numerici del sangue.

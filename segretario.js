@@ -3,7 +3,7 @@
 
   // ============================================================
   // SEGRETARIO MMG
-  // Versione 0.16.10
+  // Versione 0.16.11
   //
   // - Estrazione con Qwen 3.5 4B locale
   // - Comunicazione diretta Ollama via service worker Chrome
@@ -10505,11 +10505,11 @@ ${sourceText}
 
     // Creatinina urinaria: il catalogo distingue 24h e voce per calcolo ACR.
     // Se il referto dice solo "U-creatinina" non inventiamo quale delle due.
-    if (n.includes("CREATININA") && /ACR|ALBUMIN.?CREAT/.test(n)) return exact("90.16.10_7");
+    if (n.includes("CREATININA") && /ACR|ALBUMIN.?CREAT/.test(n)) return exact("90.16.11_7");
     if (concept === "CREATININE_URINE" || (concept === "CREATININE" && detectSpecimen(query) === "URINE")) {
-      if (/24 ?H|24 ORE|GIORNALIER/.test(n)) return exact("90.16.10_3");
-      if (/ACR|ALBUMIN.?CREAT|RAPPORTO/.test(n)) return exact("90.16.10_7");
-      if (context?.urineCreatinineForAcr && !/MINZ|DROGHE|PERITONE|DIALISI/.test(n)) return exact("90.16.10_7");
+      if (/24 ?H|24 ORE|GIORNALIER/.test(n)) return exact("90.16.11_3");
+      if (/ACR|ALBUMIN.?CREAT|RAPPORTO/.test(n)) return exact("90.16.11_7");
+      if (context?.urineCreatinineForAcr && !/MINZ|DROGHE|PERITONE|DIALISI/.test(n)) return exact("90.16.11_7");
       return { blocked: true, reason: "Creatinina urinaria senza tipologia prescrivibile univoca" };
     }
 
@@ -13576,54 +13576,91 @@ Output JSON compatto:
     )])].filter(isActuallyVisibleInViewport);
   }
 
-  async function choosePrescriptionCatalogTarget(input, target, item) {
-    if (!(await triggerNonPrescribedCatalogFilter(input, target))) {
-      return { success: false, exactOptionFound: false };
-    }
-    let option = null;
-    let visibleOptions = [];
-    for (let elapsed = 0; elapsed < 1800; elapsed += 80) {
-      visibleOptions = getPrescriptionCatalogOptions();
-      const ranked = visibleOptions.map(candidate => ({
-        candidate, score: filterSelectCandidateScore(candidate.textContent, target)
-      })).filter(candidate => candidate.score >= 7000).sort((a, b) => b.score - a.score);
-      if (ranked.length) { option = ranked[0].candidate; break; }
+  function readPrescriptionCatalogSelection(item, popup) {
+    const field = getPrescriptionListForm()?.accertamento;
+    const value = String(field?.value || "").trim();
+    const fieldIsCode = !!value && value.toUpperCase() === String(item?.catalogCode || "").toUpperCase();
+    const fieldMatched = !!value && !fieldIsCode && prescriptionRowMatchesItem({ textContent: value }, item);
+    const popupVisible = !!popup && isActuallyVisibleInViewport(popup);
+    return { fieldPresent: !!field, fieldIsCode, fieldMatched, popupVisible,
+      success: fieldMatched && !popupVisible };
+  }
+
+  async function waitPrescriptionCatalogSelection(item, popup, timeoutMs = 1400) {
+    let stable = 0;
+    for (let elapsed = 0; elapsed <= timeoutMs; elapsed += 80) {
+      const state = readPrescriptionCatalogSelection(item, popup);
+      stable = state.success ? stable + 1 : 0;
+      if (stable >= 2) return state;
       await sleep(80);
     }
-    if (!option) return { success: false, exactOptionFound: false };
+    return { ...readPrescriptionCatalogSelection(item, popup), success: false };
+  }
 
-    const popup = getFilterSelectPopup(option);
-    const commitTab = async () => {
-      const form = getPrescriptionListForm();
-      const current = form?.accertamento;
-      if (!current) return false;
-      try { current.focus({ preventScroll: true }); } catch { current.focus(); }
-      dispatchLegacyKey(current, "keydown", "Tab", "Tab", 9);
-      dispatchLegacyKey(current, "keyup", "Tab", "Tab", 9);
-      // KeyboardEvent non sposta il focus nativamente. Il focus sul campo
-      // esenzione genera anche blur/focusout reali senza toccarne il valore.
-      try { form.exemption?.focus({ preventScroll: true }); } catch {}
-      const closed = await waitFilterPopupClosed(popup, target, 900);
-      if (!closed) return false;
-      await sleep(180);
-      const value = String(getPrescriptionListForm()?.accertamento?.value || "").trim();
-      // Un codice puro rimasto digitato non prova l'acquisizione della voce.
-      const searchingCode = String(item?.catalogCode || "").toUpperCase() === String(target).toUpperCase();
-      if (!value || (searchingCode && value.toUpperCase() === target.toUpperCase())) return false;
-      return prescriptionRowMatchesItem({ textContent: value }, item);
+  async function choosePrescriptionCatalogTarget(input, target, item) {
+    const started = Date.now();
+    const queryIndex = item._diagnosticQuery = (item._diagnosticQuery || 0) + 1;
+    const trace = (step, state = {}) => {
+      if (typeof recordDiagnosticEvent === "function") recordDiagnosticEvent("catalogo_selezione", {
+        rowIndex: item?._diagnosticRow || 0, attempt: item?._diagnosticAttempt || 1,
+        queryIndex, targetIsCode: String(target).toUpperCase() === String(item.catalogCode).toUpperCase(),
+        pageHidden: typeof document !== "undefined" && Boolean(document.hidden),
+        step, durationMs: Date.now() - started, ...state
+      });
     };
-
-    // Con una sola proposta non c'e' un indice da indovinare: replichiamo il
-    // TAB manuale. Con piu' proposte clicchiamo quella corrispondente prima.
-    if (visibleOptions.length === 1 && await commitTab()) {
-      return { success: true, exactOptionFound: true };
+    if (!(await triggerNonPrescribedCatalogFilter(input, target))) {
+      trace(1, { success: false });
+      return { success: false, exactOptionFound: false };
     }
-    // Fallback nella stessa ricerca: niente riscrittura del codice e nessun
-    // click sul Salva. Evita di pagare un intero retry solo per acquisire la voce.
-    if (!isActuallyVisibleInViewport(option)) return { success: false, exactOptionFound: true };
+    const findOption = () => {
+      const visible = getPrescriptionCatalogOptions();
+      const ranked = visible.filter(candidate =>
+        filterSelectCandidateScore(candidate.textContent, target) >= 7000 &&
+        prescriptionRowMatchesItem(candidate, item));
+      return { visible, ranked };
+    };
+    let found = { visible: [], ranked: [] };
+    for (let elapsed = 0; elapsed < 2000; elapsed += 80) {
+      found = findOption();
+      if (found.ranked.length) {
+        // Use the fresh menu item after Vaadin has had time to finish rendering.
+        await sleep(100);
+        found = findOption();
+        if (found.ranked.length) break;
+      }
+      await sleep(80);
+    }
+    trace(2, { optionsCount: found.visible.length, matchingOptions: found.ranked.length });
+    if (found.ranked.length !== 1) return { success: false, exactOptionFound: found.ranked.length > 0 };
+    let option = found.ranked[0];
+    let popup = getFilterSelectPopup(option);
+    // Click before blur: a synthetic Tab alone can dismiss the menu without
+    // committing its highlighted item, leaving no visible item for a fallback.
     dispatchVaadinMouseSequence(option);
-    await sleep(100);
-    return { success: await commitTab(), exactOptionFound: true };
+    let selected = await waitPrescriptionCatalogSelection(item, popup);
+    trace(3, selected);
+    if (selected.success) return { success: true, exactOptionFound: true };
+
+    // Same search, no rewriting: send Tab only after the exact-item click.
+    const form = getPrescriptionListForm();
+    const current = form?.accertamento;
+    if (!current) return { success: false, exactOptionFound: true };
+    dispatchLegacyKey(current, "keydown", "Tab", "Tab", 9);
+    dispatchLegacyKey(current, "keyup", "Tab", "Tab", 9);
+    try { form.exemption?.focus({ preventScroll: true }); } catch {}
+    selected = await waitPrescriptionCatalogSelection(item, popup, 1800);
+    trace(4, selected);
+    if (selected.success) return { success: true, exactOptionFound: true };
+
+    // A menu rebuilt during the click needs its new node, not a new query.
+    found = findOption();
+    if (found.ranked.length === 1 && found.ranked[0] !== option) {
+      option = found.ranked[0]; popup = getFilterSelectPopup(option);
+      dispatchVaadinMouseSequence(option);
+      selected = await waitPrescriptionCatalogSelection(item, popup);
+      trace(5, selected);
+    }
+    return { success: selected.success, exactOptionFound: true };
   }
 
   async function prescriptionTabTo(from, to, waitMs = 180) {
@@ -13639,6 +13676,9 @@ Output JSON compatto:
   }
 
   async function writePrescriptionListItemAttempt(item, before, attemptIndex = 0) {
+    item._diagnosticAttempt = attemptIndex + 1;
+    item._diagnosticQuery = 0;
+    if (typeof recordDiagnosticEvent === "function") recordDiagnosticEvent("prescrizione_tentativo", { rowIndex: item._diagnosticRow || 0, attempt: attemptIndex + 1, pageHidden: Boolean(document.hidden) });
     let form = await waitForPrescriptionListForm(["accertamento", "confirm"]);
     if (!form?.accertamento || !form?.confirm) {
       return { success: false, item, field: "Pagina Accertamenti non riconosciuta" };
@@ -13683,12 +13723,14 @@ Output JSON compatto:
 
     item.prescriptionPendingSnapshot = before;
     vaadinClick(form.confirm);
+    if (typeof recordDiagnosticEvent === "function") recordDiagnosticEvent("prescrizione_conferma", { rowIndex: item._diagnosticRow || 0, attempt: attemptIndex + 1, confirmationSent: true });
 
     const row = await waitForPrescriptionRowAdded(
       before,
       item,
       [4600, 5400, 6200, 7000][Math.min(attemptIndex, 3)]
     );
+    if (typeof recordDiagnosticEvent === "function") recordDiagnosticEvent("prescrizione_riga", { rowIndex: item._diagnosticRow || 0, attempt: attemptIndex + 1, success: Boolean(row) });
     if (!row) return {
       success: false, item,
       field: `Conferma inviata, ma nuova riga non verificata (totale TreeGrid: ${before.total} → ${getPrescriptionListRowCount() ?? "non disponibile"}; righe corrispondenti visibili: ${getPrescriptionRowEvidence(item).length}). Controlla la tabella Eumed prima di riprovare: nessun reinvio automatico.`,
@@ -13746,6 +13788,7 @@ Output JSON compatto:
     for (let i = 0; i < pending.length; i++) {
       const item = pending[i];
       progressCallback?.(i + 1, pending.length, item);
+      item._diagnosticRow = i + 1;
       const result = await writePrescriptionListItem(item);
       if (!result.success) {
         return { success: false, completed, failed: item, field: result.field || "controllare" };
@@ -14201,9 +14244,9 @@ button:disabled {
   const diagnosticSessionStarted = Date.now();
 
   function recordDiagnosticEvent(kind, data = {}) {
-    const allowedKinds = ["operazione_avviata", "operazione_terminata", "ia_completata", "ia_errore"];
+    const allowedKinds = ["operazione_avviata", "operazione_terminata", "ia_completata", "ia_errore", "catalogo_selezione", "prescrizione_tentativo", "prescrizione_conferma", "prescrizione_riga"];
     if (!allowedKinds.includes(kind)) return;
-    const allowedKeys = ["durationMs", "inputCharacters", "outputCharacters", "images", "numeric", "complex", "uncertain", "requested", "completed", "retries", "retriedRows", "catalogSelectionMs", "interrupted", "error"];
+    const allowedKeys = ["durationMs", "inputCharacters", "outputCharacters", "images", "numeric", "complex", "uncertain", "requested", "completed", "retries", "retriedRows", "catalogSelectionMs", "interrupted", "error", "rowIndex", "attempt", "queryIndex", "targetIsCode", "step", "optionsCount", "matchingOptions", "fieldPresent", "fieldIsCode", "fieldMatched", "popupVisible", "success", "confirmationSent", "pageHidden"];
     const safe = {};
     for (const key of allowedKeys) {
       const value = data[key];
@@ -14238,6 +14281,9 @@ button:disabled {
       `Modello IA: ${model}`, "Ragionamento esteso nelle richieste: disattivato",
       "Contenuto: tempi relativi, conteggi e stato delle operazioni. Nessun testo o valore del referto, nome file, URL o dato del paziente.",
       "Gli eventi descrivono questa pagina dall'apertura; massimo 300 eventi. Il report non sostituisce la verifica dei risultati.",
+      "Diagnostica prescrizione: rowIndex = numero progressivo anonimo; attempt = tentativo; queryIndex = ricerca nello stesso tentativo; targetIsCode = ricerca per codice; pageHidden = scheda in background.",
+      "catalogo_selezione step: 1 filtro non avviato; 2 proposte disponibili; 3 verifica dopo click; 4 verifica dopo Tab; 5 verifica dopo ricostruzione menu. fieldMatched = testo del campo corrispondente; fieldIsCode = solo codice digitato; popupVisible = menu ancora visibile. Questi stati non provano la creazione della riga.",
+      "prescrizione_conferma = conferma locale inviata; prescrizione_riga success = nuova riga verificata. Nomi esami, codici e contenuto dei campi non sono inclusi.",
       "Per assistenza: incollare separatamente nomi esami, valori, unita e intervalli, dopo anonimizzazione. Non allegare documenti identificabili.",
       "", JSON.stringify(events, null, 2)].join("\n");
   }

@@ -236,8 +236,8 @@ test('writer stops if the local confirmation remains missing', async () => {
   assert.equal(await context.waitForPrescriptionListForm(['confirm'], 160), null);
 });
 
-function selectionContext({ multiple = false, tabCommits = true, optionsVisible = true } = {}) {
-  const state = { tabs: 0, clicks: 0, popupVisible: optionsVisible };
+function selectionContext({ multiple = false, tabCommits = true, optionsVisible = true, clickCommits = true, commitDelay = 0 } = {}) {
+  const state = { tabs: 0, clicks: 0, queries: 0, events: [], remaining: commitDelay, popupVisible: optionsVisible };
   const target = { catalogCode: '90.27.1_2', exam: 'GLUCOSIO [S]', catalogEntry: { name: 'GLUCOSIO [S]', aliases: [] } };
   const input = { value: '90.27.1_2', focus() {} };
   const popup = {};
@@ -245,13 +245,17 @@ function selectionContext({ multiple = false, tabCommits = true, optionsVisible 
   const form = { accertamento: input, exemption: { focus() {} } };
   const context = load(['normalizeExamName', 'significantTokens', 'filterSelectCandidateScore',
     'prescriptionRowText', 'normalizePrescriptionRowText', 'prescriptionRowMatchesItem',
-    'choosePrescriptionCatalogTarget'], {
-    triggerNonPrescribedCatalogFilter: async () => true,
+    'readPrescriptionCatalogSelection', 'waitPrescriptionCatalogSelection', 'choosePrescriptionCatalogTarget'], {
+    triggerNonPrescribedCatalogFilter: async () => { state.queries++; return true; },
     getPrescriptionCatalogOptions: () => state.popupVisible ? (multiple ? [
       { textContent: '90.27.1_3 -- GLUCOSIO [U] 24H' }, option,
     ] : [option]) : [],
     getFilterSelectPopup: () => popup,
-    getPrescriptionListForm: () => form,
+    recordDiagnosticEvent: (kind, data) => state.events.push({kind, ...data}),
+    getPrescriptionListForm: () => {
+      if (state.clicks && clickCommits && state.remaining > 0 && --state.remaining === 0) {input.value = "GLUCOSIO [S]"; state.popupVisible = false;}
+      return form;
+    },
     dispatchLegacyKey: (field, type, key) => {
       assert.equal(key, 'Tab'); assert.equal(field, input);
       if (type === 'keydown') {
@@ -263,10 +267,11 @@ function selectionContext({ multiple = false, tabCommits = true, optionsVisible 
     isActuallyVisibleInViewport: () => state.popupVisible,
     dispatchVaadinMouseSequence: selected => {
       assert.equal(selected, option);
-      state.clicks++; input.value = 'GLUCOSIO [S]'; state.popupVisible = false;
+      state.clicks++;
+      if (clickCommits && !commitDelay) {input.value = 'GLUCOSIO [S]'; state.popupVisible = false;}
     },
   });
-  return { context, state, input, target };
+  return { context, state, input, target, option, form };
 }
 
 test('bone metabolism prescription list resolves all twenty entries with the actual catalog', () => {
@@ -516,28 +521,64 @@ P-FT3(Triiodotironina Lib.) 4,60 pmol/L 3,90 - 6,80`;
   assert.equal(context.extractAcrResult(text, 'AOU_PADOVA').unit, 'mg/g');
 });
 
-test('a single real proposal is committed with Tab on the first filter, without a click retry', async () => {
+test('a single real proposal is clicked before blur on the first filter', async () => {
   const { context, state, input, target } = selectionContext();
   assert.equal((await context.choosePrescriptionCatalogTarget(input, '90.27.1_2', target)).success, true);
-  assert.equal(state.tabs, 1); assert.equal(state.clicks, 0);
+  assert.equal(state.tabs, 0); assert.equal(state.clicks, 1); assert.equal(state.queries, 1);
 });
 
-test('multiple proposals require clicking the exact code before Tab', async () => {
+test('multiple proposals require clicking the exact code, with no unnecessary Tab', async () => {
   const { context, state, input, target } = selectionContext({ multiple: true });
   assert.equal((await context.choosePrescriptionCatalogTarget(input, '90.27.1_2', target)).success, true);
-  assert.equal(state.clicks, 1); assert.equal(state.tabs, 1);
+  assert.equal(state.clicks, 1); assert.equal(state.tabs, 0);
 });
 
-test('if Tab alone fails, the exact proposal is clicked in the same search', async () => {
-  const { context, state, input, target } = selectionContext({ tabCommits: false });
+test('if the clicked proposal requires Tab, commit it without rewriting the filter', async () => {
+  const { context, state, input, target } = selectionContext({ clickCommits: false });
   assert.equal((await context.choosePrescriptionCatalogTarget(input, '90.27.1_2', target)).success, true);
-  assert.equal(state.clicks, 1); assert.equal(state.tabs, 2);
+  assert.equal(state.clicks, 1); assert.equal(state.tabs, 1); assert.equal(state.queries, 1);
 });
 
 test('typed code without any real visible proposal never commits', async () => {
   const { context, state, input, target } = selectionContext({ optionsVisible: false });
   assert.equal((await context.choosePrescriptionCatalogTarget(input, '90.27.1_2', target)).success, false);
   assert.equal(state.tabs, 0); assert.equal(state.clicks, 0);
+});
+
+test('delayed field acquisition is awaited without rewriting or clicking again', async () => {
+  const { context, state, input, target } = selectionContext({ commitDelay: 8, tabCommits: false });
+  assert.equal((await context.choosePrescriptionCatalogTarget(input, target.catalogCode, target)).success, true);
+  assert.equal(state.queries, 1); assert.equal(state.clicks, 1); assert.equal(state.tabs, 0);
+  assert.ok(state.events.some(e => e.step === 3 && e.fieldMatched && !e.fieldIsCode));
+});
+
+test('closing a popup with Tab while leaving the typed code is never a selection', async () => {
+  const { context, state, input, target, form } = selectionContext({ clickCommits: false, tabCommits: false });
+  form.exemption.focus = () => { state.popupVisible = false; };
+  const result = await context.choosePrescriptionCatalogTarget(input, target.catalogCode, target);
+  assert.equal(result.success, false);
+  assert.equal(state.queries, 1);
+  assert.ok(state.events.some(e => e.step === 4 && e.fieldIsCode && !e.success));
+});
+
+test('a remounted option is reacquired in the same search', async () => {
+  const { context, state, input, target, option } = selectionContext({ clickCommits: false, tabCommits: false });
+  const fresh = { textContent: option.textContent };
+  context.getPrescriptionCatalogOptions = () => state.popupVisible ? [state.clicks ? fresh : option] : [];
+  context.dispatchVaadinMouseSequence = selected => {
+    state.clicks++;
+    if (selected === fresh) { input.value = 'GLUCOSIO [S]'; state.popupVisible = false; }
+  };
+  assert.equal((await context.choosePrescriptionCatalogTarget(input, target.catalogCode, target)).success, true);
+  assert.equal(state.queries, 1); assert.equal(state.clicks, 2);
+  assert.ok(state.events.some(e => e.step === 5 && e.success));
+});
+
+test('duplicate exact proposals do not pick an arbitrary menu item', async () => {
+  const { context, state, input, target, option } = selectionContext();
+  context.getPrescriptionCatalogOptions = () => [option, {textContent: option.textContent}];
+  assert.equal((await context.choosePrescriptionCatalogTarget(input, target.catalogCode, target)).success, false);
+  assert.equal(state.clicks, 0); assert.equal(state.tabs, 0);
 });
 
 test('prescription options ignore mounted offscreen popup entries', () => {
