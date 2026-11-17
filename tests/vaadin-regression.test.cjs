@@ -470,6 +470,116 @@ function reportContext() {
   return context;
 }
 
+const inlineLabFixture = `EMATOLOGIA
+ES. EMOCROMOCITOMETRICO
+Leucociti 6,10 x10^3/mmc [4,50 - 11,00]
+Eritrociti 4,90 x10^6/mmc [4,50 - 6,10]
+Emoglobina 14,8 g/dL [14,0 - 18,0]
+148,0 g/L [140,0 - 180,0]
+Ematocrito 44,2 % [40,0 - 50,0]
+Volume cellulare medio 90,2 fL [80,0 - 99,0]
+Contenuto medio di Hb 29,4 pg [27,0 - 33,0]
+Concentr. media di Hb 33,1 g/dL [31,5 - 36,0]
+Indice di anisocitosi 13,1 % [11,5 - 16,5]
+Piastrine 241 x10^3/mmc [130 - 400]
+Neutrofili 52,5 %
+3,20 x10^3/mmc [1,90 - 8,00]
+Linfociti 35,0 %
+2,13 x10^3/mmc [1,0 - 4,0]
+CHIMICA CLINICA
+P-GLUCOSIO 94 mg/dL [74 - 106]
+P-CREATININA * 1,22 mg/dL [0,72 - 1,18]
+Metodo: enzimatico
+eGFR (Velocita' di filtrazione glomerulare) 72,0 ml/min [> 60,00]
+Il calcolo dell'eGFR (formula CKD-EPI) non e' applicabile nelle donne in gravidanza e nei soggetti di eta' superiore a 75 anni.
+P-TRIGLICERIDI 52 mg/dL [30,0 - 150,0]
+P-COLESTEROLO 172 mg/dL [80 - 200]
+P-COLESTEROLO FRAZIONATO
+P-HDL-COLESTEROLO 62 mg/dL [45 - 130]
+P-COLESTEROLO NON-HDL 110 mg/dl [desiderabile < 130]
+Validazione assistita da sistema esperto`;
+
+function inlineLabContext() {
+  const context = reportContext();
+  load(['countReportTerms', 'reportContainsLongReportCluster', 'detectKnownLabLayout', 'extractExplicitCbcSection',
+    'parseInlineSpecimenMeasurement', 'parseAnchoredMeasurementLine', 'parsePureBilateralRangeLine',
+    'parseNearbyBilateralRange', 'extractSpecimenAnchoredResults', 'getLongReportKind',
+    'reportReallyContainsLongReportKind', 'extractPsaReflexData', 'expandUnprescribedPayload', 'validateUnprescribedAiSource'], {}, context);
+  load(['knownLongReportKinds', 'getFixedComplexCatalogEntry', 'genericLongReportSlice', 'extractKnownLongReportText',
+    'normalizeLongReportText', 'buildUnprescribedFixedComplexItems', 'aiLineHasMeasurement', 'aiLineIsClinicalContext',
+    'isKnownAiChromeLine', 'stripKnownPageChrome', 'collectConsumedAiLineKeys', 'removeConsumedAiLines',
+    'getUnclaimedAiEvidence', 'buildKnownUnprescribedResidualEvidence'], {}, context);
+  vm.runInContext(source.match(/  const UNPRESCRIBED_FIXED_COMPLEX_CODES = \{[\s\S]*?\n  \};/)[0],context);
+  context.getAvailableExams=()=>[];
+  return context;
+}
+
+test('third-party inline chemistry and Italian CBC preserve all numeric tests and the complete CBC', () => {
+  const c=inlineLabContext();
+  assert.equal(c.detectKnownLabLayout(inlineLabFixture),'INLINE_CBC_CHEMISTRY');
+  const cbc=c.extractExplicitCbcSection(inlineLabFixture);
+  assert.match(cbc,/Leucociti 6,10/);assert.match(cbc,/Emoglobina 14,8/);
+  assert.match(cbc,/148,0 g\/L/);assert.match(cbc,/2,13 x10/);
+  assert.doesNotMatch(cbc,/CHIMICA|P-GLUCOSIO|eGFR/);
+  const raw=c.extractSpecimenAnchoredResults(inlineLabFixture);
+  assert.equal(raw.length,6);
+  const prepared=Array.from(raw,x=>c.prepareUnprescribedNumericCandidate(x,'',c.buildUnprescribedDecisionContext(inlineLabFixture,raw)));
+  assert.equal(prepared.filter(x=>x.success).length,5,JSON.stringify(prepared));
+  assert.ok(prepared.some(x=>x.success&&x.item.catalogCode==='90.14.3_0'&&x.item.value==='172'));
+  assert.ok(prepared.some(x=>!x.success&&/dato derivato/.test(x.uncertain.reason)));
+  assert.equal(c.reportReallyContainsLongReportKind(inlineLabFixture,'URINE'),false);
+  const fixed=c.buildUnprescribedFixedComplexItems(inlineLabFixture,'INLINE_CBC_CHEMISTRY',raw,'');
+  assert.equal(fixed.length,1);assert.equal(fixed[0].complexKind,'EMOCROMO');
+  const residual=c.buildKnownUnprescribedResidualEvidence(inlineLabFixture,'INLINE_CBC_CHEMISTRY',raw,fixed);
+  assert.equal(residual.count,0,JSON.stringify(residual));
+});
+
+test('the full unprescribed flow processes the new layout without AI rescue or invented panels', async () => {
+  const c=inlineLabContext();
+  load(['extractSimpleNumericReport','extractUnprescribedDeterministicRaw','extractPaddleTabularResults',
+    'removeUnsupportedDuplicateAssignments','sourceSupportScoreForResult','isHbA1cLabel','parseExplicitReportDateText',
+    'rawResultCoveredByUnprescribedComplex','isLongReportComponent','extractUnprescribedFromReport'],{},c);
+  c.ensureLabCatalog=async()=>{};
+  c.extractUnprescribedWithQwen=()=>{throw Error('No AI call expected for fully explained report');};
+  c.buildRawSerologyComplexItems=()=>[];
+  c.detectSerologyComplexItems=()=>({items:[],unmatched:[]});
+  const result=await c.extractUnprescribedFromReport(inlineLabFixture);
+  assert.equal(result.numeric.length,5);assert.equal(result.complex.length,1);
+  assert.equal(result.complex[0].complexKind,'EMOCROMO');assert.equal(result.stats.qwenUsed,false);
+  assert.equal(result.uncertain.filter(x=>x.text!=='Data del referto').length,1);
+  assert.ok(result.uncertain.some(x=>/dato derivato/.test(x.reason)));
+});
+
+test('AI object rows remain source-bound and invented urine, chemistry panels and generic notes are rejected', () => {
+  const c=inlineLabContext();
+  const lines=inlineLabFixture.split('\n');
+  const p=c.expandUnprescribedPayload({d:'',de:'',r:[
+    {exam:'glucosio',value:'94',unit:'mg/dl',ref_min:'74',ref_max:'106',ref_unit:'mg/dL',raw_label:'P-GLUCOSIO'},
+    {exam:'creatinina',value:'52',unit:'mg/dL',raw_label:'P-CREATININA'},
+    {exam:'urine',value:'ESAME COMPLETO E SEDIMENTO',unit:'',raw_label:'URINE'}],
+    c:[{kind:'EMOCROMO',label:'Emocromo e formula',line_start:2,line_end:16},
+      {kind:'CHIMICA CLINICA - GLUCOSI',label:'CHIMICA CLINICA - GLUCOSI',line_start:17,line_end:18},
+      {kind:'URINE',label:'URINE',line_start:1,line_end:16}],
+    u:[{text:'eGFR calcolo non applicabile',reason:'nota generale'},
+      {text:'P-COLESTEROLO NON-HDL unita di misura ambigua',reason:'mg/dl invece di mg/dL'}]},lines);
+  const filtered=c.validateUnprescribedAiSource(p,inlineLabFixture);
+  assert.equal(filtered.results.length,1);assert.equal(filtered.results[0].value,'94');
+  assert.equal(filtered.complex.length,1);assert.equal(filtered.complex[0].kind,'EMOCROMO');
+  assert.equal(filtered.uncertain.length,0);
+  const legacy=c.expandUnprescribedPayload({r:[['glucosio','94','mg/dl','74','106','mg/dL','P-GLUCOSIO']],c:[],u:[]},lines);
+  assert.equal(c.validateUnprescribedAiSource(legacy,inlineLabFixture).results.length,1);
+  const schema=source.match(/  const UNPRESCRIBED_SCHEMA = \{[\s\S]*?\n  \};/)[0];
+  vm.runInContext(schema+'\nthis.aiSchema=UNPRESCRIBED_SCHEMA;',c);
+  assert.equal(c.aiSchema.properties.r.items.type,'object');
+  assert.equal(c.aiSchema.properties.c.items.type,'object');
+  assert.ok(c.aiSchema.properties.c.items.properties.kind.enum.includes('EMOCROMO'));
+  assert.ok(!c.aiSchema.properties.c.items.properties.kind.enum.includes('CHIMICA CLINICA'));
+  for (const [kind,text] of [['BILIRUBINA','BILIRUBINA TOTALE 0,8 mg/dL'],['PSA_REFLEX','PSA TOTALE 1,3 ng/mL']]) {
+    const valid=c.validateUnprescribedAiSource({results:[],complex:[{kind,label:kind,text}],uncertain:[]},text);
+    assert.equal(valid.complex.length,1,kind);
+  }
+});
+
 test('non-prescribed FT3 maps the report spelling to the misspelled CVP name and preserves value/range', () => {
   const context = reportContext();
   const result = context.prepareUnprescribedNumericCandidate({ raw_label: 'P-FT3(Triiodotironina Lib.)',

@@ -1,3 +1,10 @@
+Segretario MMG v0.16.13
+
+- Parser per tabella emocromo italiano/chimica clinica; conservazione del referto completo e misure secondarie.
+- Associazione P-COLESTEROLO al totale; non-HDL distinto come dato derivato senza prestazione autonoma univoca.
+- Output IA con oggetti espliciti e controllo su testo originale; rifiuto di sezioni inventate e interpretazioni di note generali.
+- Diagnostica con conteggi del parser e della validazione IA, senza contenuti del documento.
+
 Segretario MMG v0.16.12
 
 - Prescrizione: duplicato solo con Data presc. odierna; una vecchia prescrizione non blocca. Date illeggibili segnalate separatamente.

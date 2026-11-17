@@ -58,3 +58,12 @@ test('catalog diagnostics retain anonymous stages and drop field text, exam code
   const report = c.createDiagnosticReport('test', 'prescription_list', 'local', events);
   assert.match(report, /step: 1 filtro/); assert.match(report, /nuova riga verificata/);
 });
+
+test('AI validation records rejection counts without the rejected clinical content', () => {
+  const c=context();
+  c.recordDiagnosticEvent('ia_validazione',{acceptedNumeric:5,acceptedComplex:1,rejectedNumeric:2,rejectedComplex:3,rejectedUncertain:2,
+    source:'PRIVATE REPORT',response:'PRIVATE RESPONSE',rejectedComplexText:'PRIVATE LABEL'});
+  const events=vm.runInContext('diagnosticEvents',c);
+  assert.equal(events[0].acceptedNumeric,5);assert.equal(events[0].rejectedComplex,3);
+  assert.doesNotMatch(JSON.stringify(events),/PRIVATE/);
+});

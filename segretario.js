@@ -3,7 +3,7 @@
 
   // ============================================================
   // SEGRETARIO MMG
-  // Versione 0.16.12
+  // Versione 0.16.13
   //
   // - Estrazione con Qwen 3.5 4B locale
   // - Comunicazione diretta Ollama via service worker Chrome
@@ -6156,6 +6156,9 @@ ${numberedReportText}
 
   function reportContainsLongReportCluster(reportText, kind) {
     if (kind === "EMOCROMO") {
+      const n = normalizeExamName(reportText);
+      if (n.includes("EMOCROMOCITOMETRICO") && countReportTerms(reportText,
+        ["LEUCOCITI", "ERITROCITI", "EMOGLOBINA", "EMATOCRITO", "PIASTRINE", "VOLUME CELLULARE MEDIO"]) >= 5) return true;
       const strong = [
         "WBC", "RBC", "HGB", "HCT", "MCV", "MCH",
         "MCHC", "PLT", "RDW", "NEUTROFILI", "LINFOCITI"
@@ -6187,6 +6190,10 @@ ${numberedReportText}
   }
 
   function genericLongReportSlice(reportText, kind) {
+    if (kind === "EMOCROMO") {
+      const explicit = extractExplicitCbcSection(reportText);
+      if (explicit) return explicit;
+    }
     const lines = String(reportText || "")
       .replace(/\r/g, "")
       .split("\n")
@@ -7608,7 +7615,18 @@ ${sourceText}
        n.includes("PRESIDIO OSPEDALIERO DI SCHIAVONIA")) &&
       n.includes("MEDICINA DI LABORATORIO")
     ) return "ULSS6_SCHIAVONIA";
+    if (n.includes("EMOCROMOCITOMETRICO") && n.includes("CHIMICA CLINICA") &&
+        reportContainsLongReportCluster(reportText, "EMOCROMO") && /(?:^|\n)\s*[PS]\s*-\s*\S+/i.test(reportText)) return "INLINE_CBC_CHEMISTRY";
     return "";
+  }
+
+  function extractExplicitCbcSection(reportText) {
+    const lines = cleanReportLines(reportText);
+    const start = lines.findIndex(line => /^(?:ES\.?\s*|ESAME\s+)?EMOCROMOCITOMETRICO\s*$/i.test(line));
+    if (start < 0 || !reportContainsLongReportCluster(reportText, "EMOCROMO")) return "";
+    let end = start + 1;
+    while (end < lines.length && !/^(?:CHIMICA CLINICA|BIOCHIMICA|IMMUNOLOGIA|ENDOCRINOLOGIA|[PSU]\s*-|FIRMATO|IL RESPONSABILE|VALIDAZIONE)/i.test(lines[end])) end++;
+    return lines.slice(start, end).filter(Boolean).join("\n");
   }
 
   function cleanReportLines(reportText) {
@@ -7850,6 +7868,7 @@ ${sourceText}
 
   function knownLongReportKinds(layout, reportText) {
     const n=normalizeExamName(reportText), kinds=[];
+    if (layout === "INLINE_CBC_CHEMISTRY" && reportContainsLongReportCluster(reportText, "EMOCROMO")) kinds.push("EMOCROMO");
     if(layout==="SYNLAB_DATA_MEDICA"){
       if(n.includes("EMOCROMOCITOMETRICO")||n.includes("EMOCROMO")) kinds.push("EMOCROMO");
       if(n.includes("ESAME URINE COMPLETO")) kinds.push("URINE");
@@ -8040,6 +8059,7 @@ ${sourceText}
   }
 
   function extractKnownLongReportText(layout,kind,reportText){
+    if (layout === "INLINE_CBC_CHEMISTRY" && kind === "EMOCROMO") return extractExplicitCbcSection(reportText);
     if(kind==="PSA_REFLEX")return buildPsaReflexLongReport(reportText);
     if(layout==="SYNLAB_DATA_MEDICA")return buildSynlabLongReport(reportText,kind);
     if(layout==="AOU_PADOVA"){
@@ -8054,7 +8074,7 @@ ${sourceText}
     if(layout==="ULSS6_SCHIAVONIA")return buildUlss6LongReport(reportText,kind);
     return "";
   }
-  function getKnownLayoutDisplayName(layout){if(layout==="SYNLAB_DATA_MEDICA")return "SYNLAB / Data Medica";if(layout==="AOU_PADOVA")return "AOU Padova";if(layout==="ULSS6_SCHIAVONIA")return "ULSS 6 / Schiavonia";return "";}
+  function getKnownLayoutDisplayName(layout){if(layout==="INLINE_CBC_CHEMISTRY")return "Tabella emocromo / chimica clinica";if(layout==="SYNLAB_DATA_MEDICA")return "SYNLAB / Data Medica";if(layout==="AOU_PADOVA")return "AOU Padova";if(layout==="ULSS6_SCHIAVONIA")return "ULSS 6 / Schiavonia";return "";}
 
   function sourceSupportScoreForResult(item, reportText) {
     const report = normalizeExamName(reportText);
@@ -10399,6 +10419,9 @@ ${sourceText}
       return entry ? { entry, score: 3000, preferred: true } : null;
     };
 
+    if (/COLESTEROLO NON HDL/.test(n)) return { blocked: true, reason: "Colesterolo non-HDL: dato derivato senza prestazione autonoma univoca nel catalogo. Consulta il valore nel referto originale." };
+    if (detectSpecimen(query) !== "URINE" && /^COLESTEROLO(?: TOTALE)?(?: S)?$/.test(stripSpecimenPrefix(query))) return exact("90.14.3_0");
+
     // Il rapporto albumina/creatinina non e' il dosaggio della creatinina
     // urinaria per ACR. Questa guardia deve precedere i mapping creatinina.
     if (/RAPP(?:ORTO)?\s+(?:U\s+)?ALBUMINA\s+(?:U\s+)?CREATININA|RAPPORTO\s+ALB\s+CRE|^(?:ACR|RAC)(?:\s|$)/.test(n)) {
@@ -10505,11 +10528,11 @@ ${sourceText}
 
     // Creatinina urinaria: il catalogo distingue 24h e voce per calcolo ACR.
     // Se il referto dice solo "U-creatinina" non inventiamo quale delle due.
-    if (n.includes("CREATININA") && /ACR|ALBUMIN.?CREAT/.test(n)) return exact("90.16.12_7");
+    if (n.includes("CREATININA") && /ACR|ALBUMIN.?CREAT/.test(n)) return exact("90.16.13_7");
     if (concept === "CREATININE_URINE" || (concept === "CREATININE" && detectSpecimen(query) === "URINE")) {
-      if (/24 ?H|24 ORE|GIORNALIER/.test(n)) return exact("90.16.12_3");
-      if (/ACR|ALBUMIN.?CREAT|RAPPORTO/.test(n)) return exact("90.16.12_7");
-      if (context?.urineCreatinineForAcr && !/MINZ|DROGHE|PERITONE|DIALISI/.test(n)) return exact("90.16.12_7");
+      if (/24 ?H|24 ORE|GIORNALIER/.test(n)) return exact("90.16.13_3");
+      if (/ACR|ALBUMIN.?CREAT|RAPPORTO/.test(n)) return exact("90.16.13_7");
+      if (context?.urineCreatinineForAcr && !/MINZ|DROGHE|PERITONE|DIALISI/.test(n)) return exact("90.16.13_7");
       return { blocked: true, reason: "Creatinina urinaria senza tipologia prescrivibile univoca" };
     }
 
@@ -11156,59 +11179,130 @@ ${sourceText}
   }
 
   const UNPRESCRIBED_SCHEMA = {
-    type: "object",
-    properties: {
-      d: { type: "string" },
-      de: { type: "string" },
-      r: {
-        type: "array",
-        items: {
-          type: "array",
-          prefixItems: [
-            { type: "string" }, { type: "string" }, { type: "string" },
-            { type: "string" }, { type: "string" }, { type: "string" },
-            { type: "string" }
+    "type": "object",
+    "properties": {
+      "d": {
+        "type": "string"
+      },
+      "de": {
+        "type": "string"
+      },
+      "r": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "exam": {
+              "type": "string"
+            },
+            "value": {
+              "type": "string"
+            },
+            "unit": {
+              "type": "string"
+            },
+            "ref_min": {
+              "type": "string"
+            },
+            "ref_max": {
+              "type": "string"
+            },
+            "ref_unit": {
+              "type": "string"
+            },
+            "raw_label": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "exam",
+            "value",
+            "unit",
+            "ref_min",
+            "ref_max",
+            "ref_unit",
+            "raw_label"
           ],
-          minItems: 7,
-          maxItems: 7
+          "additionalProperties": false
         }
       },
-      c: {
-        type: "array",
-        items: {
-          type: "array",
-          prefixItems: [
-            {
-              type: "string",
-              enum: [
-                "EMOCROMO", "URINE", "PROTIDOGRAMMA",
-                "TIPIZZAZIONE_LINFOCITARIA", "TIPIZZAZIONE_MONOCLONALE",
-                "BENCE_JONES", "PSA_REFLEX", "BILIRUBINA", "SIEROLOGIA"
+      "c": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "EMOCROMO",
+                "URINE",
+                "PROTIDOGRAMMA",
+                "TIPIZZAZIONE_LINFOCITARIA",
+                "TIPIZZAZIONE_MONOCLONALE",
+                "BENCE_JONES",
+                "PSA_REFLEX",
+                "BILIRUBINA",
+                "SIEROLOGIA"
               ]
             },
-            { type: "string" },
-            { type: "integer", minimum: 1 },
-            { type: "integer", minimum: 1 }
+            "label": {
+              "type": "string"
+            },
+            "line_start": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "line_end": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          "required": [
+            "kind",
+            "label",
+            "line_start",
+            "line_end"
           ],
-          minItems: 4,
-          maxItems: 4
+          "additionalProperties": false
         }
       },
-      u: {
-        type: "array",
-        items: {
-          type: "array",
-          prefixItems: [{ type: "string" }, { type: "string" }],
-          minItems: 2,
-          maxItems: 2
+      "u": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "text": {
+              "type": "string"
+            },
+            "reason": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "text",
+            "reason"
+          ],
+          "additionalProperties": false
         }
       }
     },
-    required: ["d", "de", "r", "c", "u"]
+    "required": [
+      "d",
+      "de",
+      "r",
+      "c",
+      "u"
+    ],
+    "additionalProperties": false
   };
 
   function expandUnprescribedPayload(parsed, sourceLines) {
-    const p = parsed && typeof parsed === "object" ? parsed : {};
+    const original = parsed && typeof parsed === "object" ? parsed : {};
+    const p = { ...original,
+      r: (Array.isArray(original.r) ? original.r : []).map(row => Array.isArray(row) ? row : [row?.exam, row?.value, row?.unit, row?.ref_min, row?.ref_max, row?.ref_unit, row?.raw_label]),
+      c: (Array.isArray(original.c) ? original.c : []).map(row => Array.isArray(row) ? row : [row?.kind, row?.label, row?.line_start, row?.line_end]),
+      u: (Array.isArray(original.u) ? original.u : []).map(row => Array.isArray(row) ? row : [row?.text, row?.reason])
+    };
     const lines = Array.isArray(sourceLines) ? sourceLines : [];
 
     const complex = Array.isArray(p.c)
@@ -11248,6 +11342,56 @@ ${sourceText}
     };
   }
 
+  function validateUnprescribedAiSource(payload, sourceText) {
+    const normalized = normalizeExamName(sourceText);
+    const sourceLines = String(sourceText || "").split(/\r?\n/);
+    let rejectedNumeric = 0, rejectedComplex = 0, rejectedUncertain = 0;
+    const results = (payload.results || []).filter(item => {
+      const label = normalizeExamName(item.raw_label || item.exam || "");
+      const value = String(item.value || "").trim();
+      const literalValue = value.replace(/^[<>\u2264\u2265]\s*/, "").replace(",", ".");
+      const present = /^[+-]?\d+(?:[.,]\d+)?$/.test(literalValue) && label && sourceLines.some((line, index) => {
+        if (!normalizeExamName(line).includes(label)) return false;
+        const direct = parseInlineSpecimenMeasurement(line);
+        if (direct) return Number(direct.value.replace(",", ".")) === Number(literalValue) && normalizeUnit(direct.unit) === normalizeUnit(item.unit);
+        const nearby = sourceLines.slice(index, index + 5);
+        const hasUnit = nearby.some(candidate => normalizeUnit(candidate).includes(normalizeUnit(item.unit)));
+        return !!item.unit && hasUnit && nearby.some(candidate =>
+          (candidate.replace(/,/g, ".").match(/[+-]?\d+(?:\.\d+)?/g) || []).some(number => Number(number) === Number(literalValue)));
+      });
+      if (!present) rejectedNumeric++;
+      return Boolean(present);
+    });
+    const kinds = ["EMOCROMO", "URINE", "PROTIDOGRAMMA", "TIPIZZAZIONE_LINFOCITARIA", "TIPIZZAZIONE_MONOCLONALE", "BENCE_JONES", "PSA_REFLEX", "BILIRUBINA", "SIEROLOGIA"];
+    const supportsKind = (text, kind) => {
+      const n = normalizeExamName(text);
+      if (kind === "BILIRUBINA") return n.includes("BILIRUBINA");
+      if (kind === "PSA_REFLEX") return /\bPSA\b|ANTIGENE PROSTATICO SPECIFICO/.test(n);
+      return reportReallyContainsLongReportKind(text, kind);
+    };
+    const complex = (payload.complex || []).filter(item => {
+      const present = kinds.includes(item.kind) && item.text && (item.kind === "SIEROLOGIA"
+        ? normalized.includes(normalizeExamName(item.label)) && looksLikeSerologyText(item.label)
+        : supportsKind(sourceText, item.kind) && supportsKind(item.text, item.kind));
+      if (!present) rejectedComplex++;
+      return Boolean(present);
+    });
+    const uncertain = (payload.uncertain || []).filter(item => {
+      const label = normalizeExamName(item.text || "");
+      const reason = normalizeExamName(item.reason || "");
+      const note = /\bEGFR\b|CKD EPI/.test(label) || /UNITA.*(?:AMBIG|MAIUSC|MINUSC)/.test(label) ||
+        (/FORMATO STANDARD|MAIUSC|MINUSC/.test(reason) && /MG DL/.test(reason));
+      const present = !note && label.length >= 3 && normalized.includes(label) && !isKnownResidualNonExamLabel(item.text, item.reason);
+      if (!present) rejectedUncertain++;
+      return present;
+    });
+    if (typeof recordDiagnosticEvent === "function") recordDiagnosticEvent("ia_validazione", {
+      acceptedNumeric: results.length, acceptedComplex: complex.length,
+      rejectedNumeric, rejectedComplex, rejectedUncertain
+    });
+    return { ...payload, results, complex, uncertain };
+  }
+
   async function extractUnprescribedWithQwen(reportText, progressCallback = null, options = {}) {
     const chunks = splitReportText(reportText, 6000);
     const merged = { report_date: "", report_date_evidence: "", results: [], complex: [], uncertain: [] };
@@ -11267,9 +11411,12 @@ ${options?.residualOnly
 Formato structured output:
 - d = data di refertazione/validazione/firma/emissione YYYY-MM-DD o ""
 - de = breve evidenza della data
-- r = risultati numerici semplici [exam,value,unit,ref_min,ref_max,ref_unit,raw_label]
-- c = referti complessi [kind,label,line_start,line_end]
-- u = elementi realmente incerti [text,reason]
+- r = oggetti risultati numerici con exam, value, unit, ref_min, ref_max, ref_unit, raw_label (tutte stringhe).
+- c = oggetti referti complessi con kind, label, line_start, line_end. kind deve essere uno dei valori ammessi; righe intere numeriche.
+- u = oggetti elementi realmente incerti con text, reason. Non interpretare note generali del laboratorio come condizioni del paziente.
+mg/dl, mg/dL e MG/DL indicano la stessa unita: le maiuscole non sono ambiguita.
+CHIMICA CLINICA e COLESTEROLO FRAZIONATO sono intestazioni, non referti complessi. Glucosio, creatinina, lipidi sono risultati numerici.
+Non inventare URINE o altre sezioni assenti. Non calcolare valori mancanti. Copia raw_label dal testo originale. Le note generali sui limiti eGFR non sono esami incerti.
 
 TRATTA SEMPRE COME COMPLESSI, MAI COME RISULTATI NUMERICI SINGOLI:
 - EMOCROMO e formula;
@@ -11304,11 +11451,11 @@ Per r usa solo il risultato corrente numerico e un range bilaterale chiaro. Non 
           chars: info?.chars || 0,
           mode: options?.residualOnly ? "residual" : "full"
         }),
-        3400,
+        6000,
         UNPRESCRIBED_SCHEMA
       );
 
-      const payload = expandUnprescribedPayload(extractJSONObject(content), sourceLines);
+      const payload = validateUnprescribedAiSource(expandUnprescribedPayload(extractJSONObject(content), sourceLines), sourceLines.join("\n"));
       merged.results.push(...payload.results);
       merged.complex.push(...payload.complex);
       merged.uncertain.push(...payload.uncertain);
@@ -11353,6 +11500,7 @@ Per r usa solo il risultato corrente numerico e un range bilaterale chiaro. Non 
       "MARCATORI CARDIACI",
       "INDICI DI FLOGOSI",
       "BIOCHIMICA CLINICA",
+      "CHIMICA CLINICA",
       "EMATOLOGIA",
       "METABOLISMO PROTEICO",
       "PROTEINE URINARIE",
@@ -11951,6 +12099,12 @@ Per r usa solo il risultato corrente numerico e un range bilaterale chiaro. Non 
         reason: "Data di refertazione/validazione/firma non rilevata con certezza"
       });
     }
+
+    if (typeof recordDiagnosticEvent === "function") recordDiagnosticEvent("parser_referto", {
+      knownLayout: !!layout, rawResults: rawResults.length, numeric: numeric.length,
+      complex: complex.length, uncertain: uncertain.length, qwenUsed: !!qwenPayload,
+      qwenResidualEvidence: qwenResidualEvidenceCount
+    });
 
     return {
       layout,
@@ -14304,9 +14458,9 @@ button:disabled {
   const diagnosticSessionStarted = Date.now();
 
   function recordDiagnosticEvent(kind, data = {}) {
-    const allowedKinds = ["operazione_avviata", "operazione_terminata", "ia_completata", "ia_errore", "catalogo_selezione", "prescrizione_tentativo", "prescrizione_conferma", "prescrizione_riga", "prescrizione_duplicati"];
+    const allowedKinds = ["operazione_avviata", "operazione_terminata", "ia_completata", "ia_errore", "catalogo_selezione", "prescrizione_tentativo", "prescrizione_conferma", "prescrizione_riga", "prescrizione_duplicati", "ia_validazione", "parser_referto"];
     if (!allowedKinds.includes(kind)) return;
-    const allowedKeys = ["durationMs", "inputCharacters", "outputCharacters", "images", "numeric", "complex", "uncertain", "requested", "completed", "retries", "retriedRows", "catalogSelectionMs", "interrupted", "error", "rowIndex", "attempt", "queryIndex", "targetIsCode", "step", "optionsCount", "matchingOptions", "bestScore", "codeMatchesCount", "captionMatchesCount", "codeAbsentCount", "codeConflictCount", "matchingRows", "todayMatches", "unknownDateMatches", "fieldPresent", "fieldIsCode", "fieldMatched", "popupVisible", "success", "confirmationSent", "pageHidden"];
+    const allowedKeys = ["durationMs", "inputCharacters", "outputCharacters", "images", "numeric", "complex", "uncertain", "requested", "completed", "retries", "retriedRows", "catalogSelectionMs", "interrupted", "error", "rowIndex", "attempt", "queryIndex", "targetIsCode", "step", "optionsCount", "matchingOptions", "bestScore", "codeMatchesCount", "captionMatchesCount", "codeAbsentCount", "codeConflictCount", "matchingRows", "todayMatches", "unknownDateMatches", "acceptedNumeric", "acceptedComplex", "rejectedNumeric", "rejectedComplex", "rejectedUncertain", "knownLayout", "rawResults", "qwenUsed", "qwenResidualEvidence", "fieldPresent", "fieldIsCode", "fieldMatched", "popupVisible", "success", "confirmationSent", "pageHidden"];
     const safe = {};
     for (const key of allowedKeys) {
       const value = data[key];
@@ -14346,6 +14500,7 @@ button:disabled {
       "prescrizione_conferma = conferma locale inviata; prescrizione_riga success = nuova riga verificata. Nomi esami, codici e contenuto dei campi non sono inclusi.",
       "Selezione: codeMatchesCount = codici coincidenti; codeAbsentCount = proposte senza codice visibile; codeConflictCount = codici diversi; captionMatchesCount = nomi compatibili; bestScore = punteggio migliore. matchingOptions conta le sole proposte a pari punteggio migliore.",
       "prescrizione_duplicati: matchingRows = righe corrispondenti; todayMatches = Data presc. odierna; unknownDateMatches = Data presc. non leggibile. Le date effettive non sono incluse.",
+      "parser_referto: formato riconosciuto, conteggi e uso IA. ia_validazione: proposte accettate/scartate dopo controllo sul testo sorgente; nessuna risposta IA o contenuto sorgente viene incluso.",
       "Per assistenza: incollare separatamente nomi esami, valori, unita e intervalli, dopo anonimizzazione. Non allegare documenti identificabili.",
       "", JSON.stringify(events, null, 2)].join("\n");
   }
