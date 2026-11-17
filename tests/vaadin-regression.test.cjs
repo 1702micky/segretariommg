@@ -335,16 +335,16 @@ test('generic calciuria is uncertain rather than guessed as a timed collection o
 
 test('plain transaminase lines resolve directly with values and no invented ranges', async () => {
   const context = reportContext();
-  load(['extractSimpleTransaminaseReport'], {}, context);
-  const raw = context.extractSimpleTransaminaseReport('AST 17 U/L\nALT 19 U/L');
+  load(['extractSimpleNumericReport'], {}, context);
+  const raw = context.extractSimpleNumericReport('AST 17 U/L\nALT 19 U/L');
   const prepared = Array.from(raw, row => context.prepareUnprescribedNumericCandidate(row, ''));
   assert.equal(prepared.every(x => x.success), true, JSON.stringify(prepared));
   assert.deepEqual(prepared.map(x => x.item.catalogCode), ['90.09.2_0', '90.04.5_0']);
   assert.deepEqual(prepared.map(x => Number(x.item.value)), [17, 19]);
   assert.equal(raw.every(x => x.ref_min === '' && x.ref_max === ''), true);
-  assert.equal(context.extractSimpleTransaminaseReport('got 17,5 UI/L\ngpt 19 U/L').length, 2);
+  assert.equal(context.extractSimpleNumericReport('got 17,5 UI/L\ngpt 19 U/L').length, 2);
   for (const text of ['', 'AST 17', 'ALT 19 mg/dL', 'AST 17 U/L\naltro esame 12', 'AST 17 U/L precedente 15', 'AST 10 - 40 U/L']) {
-    assert.equal(context.extractSimpleTransaminaseReport(text), null);
+    assert.equal(context.extractSimpleNumericReport(text), null);
   }
   Object.assign(context, {
     ensureLabCatalog: async () => {}, detectKnownLabLayout: () => null,
@@ -360,6 +360,38 @@ test('plain transaminase lines resolve directly with values and no invented rang
   assert.equal(result.stats.qwenUsed, false);
   assert.equal(result.uncertain.length, 1); // Missing report date remains visible.
   assert.equal(result.uncertain[0].text, 'Data del referto');
+  const expanded = await context.extractUnprescribedFromReport('glicemia 91 mg/dL\nFT4 15 pmol/L\ncalcemia 9,3 mg/dL');
+  assert.equal(expanded.numeric.length, 3);
+  assert.equal(expanded.stats.qwenUsed, false);
+});
+
+test('simple numeric catalog reports cover chemistry, electrolytes, lipids and hormones', () => {
+  const context = reportContext();
+  load(['extractSimpleNumericReport'], {}, context);
+  const lines = ['glicemia 91 mg/dL', 'creatinina sierica 0,82 mg/dL', 'urea 31 mg/dL',
+    'colesterolo totale 178 mg/dL', 'colesterolo HDL 56 mg/dL', 'trigliceridi 108 mg/dL',
+    'sodio 139 mmol/L', 'potassio 4,1 mmol/L', 'calcemia 9,3 mg/dL',
+    'fosforemia 3,2 mg/dL', 'magnesemia 2 mg/dL', 'TSH 2,1 mUI/L',
+    'FT3 4,7 pmol/L', 'FT4 15 pmol/L', 'PTH 42 pg/mL', 'vitamina D 28 ng/mL',
+    'GGT 24 U/L', 'ALP 72 U/L'];
+  for (const line of lines) {
+    const parts = line.match(/^(.+?)\s+([\d,]+)\s+(\S+)$/);
+    const debug = parts && context.prepareUnprescribedNumericCandidate({raw_label:parts[1], value:parts[2], unit:parts[3]}, '', context.buildUnprescribedDecisionContext(line));
+    assert.ok(context.extractSimpleNumericReport(line), line + ': ' + JSON.stringify(debug));
+  }
+  const parsed = context.extractSimpleNumericReport(lines.join('\n'));
+  assert.equal(parsed.length, lines.length);
+  for (const raw of parsed) {
+    const prepared = context.prepareUnprescribedNumericCandidate(raw, '', context.buildUnprescribedDecisionContext(lines.join('\n')));
+    assert.equal(prepared.success, true, JSON.stringify(prepared));
+    assert.equal(prepared.item.rangeAvailable, false);
+  }
+  for (const line of ['creatinina 90 mg/g', 'glicemia 91 U/L', 'sodio 139 mg/dL',
+    'calciuria 24h 180 mg/24h', 'sodiuria 60 mmol/L', 'U-glucosio 10 mg/dL',
+    'emocromo 12 g/dL', 'PSA 2 ng/mL', 'PCR 2 mg/L', 'LDL 115 mg/dL', 'glicemia precedente 91 mg/dL',
+    'creatinina 0,8 mg/dL eGFR 90', 'glicemia 91 mg/dL\nnota non interpretata']) {
+    assert.equal(context.extractSimpleNumericReport(line), null, line);
+  }
 });
 
 function reportContext() {

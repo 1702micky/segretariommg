@@ -3,7 +3,7 @@
 
   // ============================================================
   // SEGRETARIO MMG
-  // Versione 0.16.9
+  // Versione 0.16.10
   //
   // - Estrazione con Qwen 3.5 4B locale
   // - Comunicazione diretta Ollama via service worker Chrome
@@ -10505,11 +10505,11 @@ ${sourceText}
 
     // Creatinina urinaria: il catalogo distingue 24h e voce per calcolo ACR.
     // Se il referto dice solo "U-creatinina" non inventiamo quale delle due.
-    if (n.includes("CREATININA") && /ACR|ALBUMIN.?CREAT/.test(n)) return exact("90.16.9_7");
+    if (n.includes("CREATININA") && /ACR|ALBUMIN.?CREAT/.test(n)) return exact("90.16.10_7");
     if (concept === "CREATININE_URINE" || (concept === "CREATININE" && detectSpecimen(query) === "URINE")) {
-      if (/24 ?H|24 ORE|GIORNALIER/.test(n)) return exact("90.16.9_3");
-      if (/ACR|ALBUMIN.?CREAT|RAPPORTO/.test(n)) return exact("90.16.9_7");
-      if (context?.urineCreatinineForAcr && !/MINZ|DROGHE|PERITONE|DIALISI/.test(n)) return exact("90.16.9_7");
+      if (/24 ?H|24 ORE|GIORNALIER/.test(n)) return exact("90.16.10_3");
+      if (/ACR|ALBUMIN.?CREAT|RAPPORTO/.test(n)) return exact("90.16.10_7");
+      if (context?.urineCreatinineForAcr && !/MINZ|DROGHE|PERITONE|DIALISI/.test(n)) return exact("90.16.10_7");
       return { blocked: true, reason: "Creatinina urinaria senza tipologia prescrivibile univoca" };
     }
 
@@ -11473,22 +11473,53 @@ Per r usa solo il risultato corrente numerico e un range bilaterale chiaro. Non 
     };
   }
 
-  function extractSimpleTransaminaseReport(reportText) {
+  function extractSimpleNumericReport(reportText) {
     const lines = String(reportText || "").split(/\r?\n/).map(line => line.trim()).filter(Boolean);
     if (!lines.length) return null;
+    const units = {
+      AST: ["u/l", "ui/l"], ALT: ["u/l", "ui/l"], GGT: ["u/l", "ui/l"],
+      ALP: ["u/l", "ui/l"], LDH: ["u/l", "ui/l"], CK: ["u/l", "ui/l"],
+      GLUCOSE: ["mg/dl", "mmol/l"], CREATININE: ["mg/dl", "mg/l", "umol/l"],
+      UREA: ["mg/dl", "mmol/l"], URIC_ACID: ["mg/dl", "umol/l"],
+      CHOLESTEROL_TOTAL: ["mg/dl", "mmol/l"], HDL: ["mg/dl", "mmol/l"],
+      LDL: ["mg/dl", "mmol/l"], TRIGLYCERIDES: ["mg/dl", "mmol/l"],
+      SODIUM: ["mmol/l", "meq/l"], POTASSIUM: ["mmol/l", "meq/l"],
+      CHLORIDE: ["mmol/l", "meq/l"], CALCIUM_TOTAL: ["mg/dl", "mmol/l"],
+      MAGNESIUM: ["mg/dl", "mmol/l"], PHOSPHATE: ["mg/dl", "mmol/l"],
+      IRON: ["ug/dl", "umol/l"], PCR: ["mg/l", "mg/dl"],
+      TSH: ["mui/l", "uiu/ml", "mu/l"], FT3: ["pmol/l", "pg/ml"],
+      FT4: ["pmol/l", "ng/dl"], PTH: ["pg/ml", "ng/l", "pmol/l"],
+      VITAMIN_D: ["ng/ml", "ug/l", "nmol/l"], B12: ["pg/ml", "ng/l", "pmol/l"],
+      FOLATE: ["ng/ml", "ug/l", "nmol/l"], FERRITIN: ["ng/ml", "ug/l"],
+    };
+    const shortNames = /^(?:AST|ALT|GOT|GPT|GGT|GAMMA GT|ALP|LDH|CK|CPK|GLICEMIA|GLUCOSIO|CREATININA(?: SIERICA)?|UREA|AZOTEMIA|URICEMIA|ACIDO URICO|COLESTEROLO(?: TOTALE| HDL| LDL)?|HDL|LDL|TRIGLICERIDI|SODIO|SODIEMIA|POTASSIO|POTASSIEMIA|KALIEMIA|CLORO|CLORUREMIA|CALCIO(?: TOTALE)?|CALCEMIA|MAGNESIO|MAGNESEMIA|FOSFORO|FOSFOREMIA|SIDEREMIA|FERRO|PCR|TSH(?: REFLEX)?|FT3|FT4|PTH|VITAMINA D|VITAMINA B12|B12|FOLATI|FOLATO|ACIDO FOLICO)$/;
     const results = [];
+    const context = buildUnprescribedDecisionContext(reportText);
     for (const line of lines) {
-      const match = line.match(/^(AST|ALT|GOT|GPT)\s+([+]?(?:\d+(?:[.,]\d+)?))\s+(U|UI)\s*\/\s*L\s*$/i);
+      const match = line.match(/^(.+?)\s+([+]?\d+(?:[.,]\d+)?)\s+([^\s]+\s*\/\s*[^\s]+)\s*$/);
       if (!match) return null;
-      const exam = /^(AST|GOT)$/i.test(match[1]) ? "AST" : "ALT";
-      results.push({ exam, raw_label: exam, value: match[2], unit: `${match[3].toUpperCase()}/L`,
-        ref_min: "", ref_max: "", ref_unit: "" });
+      const label = match[1].trim();
+      const n = normalizeExamName(label);
+      // Urine, timed collections and complex panels keep their dedicated parsers.
+      if (detectSpecimen(label) === "URINE" || /URIA|\b24\s*H\b|\b24H\b/.test(n)) return null;
+      const preferred = shortNames.test(n) ? preferredPrescriptionCatalogEntry(label) : null;
+      const catalogLabel = preferred?.name || label;
+      const resolved = matchCatalogForCreation(catalogLabel, context);
+      if (!resolved?.entry || resolved.ambiguous || resolved.blocked) return null;
+      const exactName = [resolved.entry.name, ...(resolved.entry.aliases || [])]
+        .some(alias => normalizeExamName(sanitizeCreationCatalogAlias(alias)) === n);
+      if (!shortNames.test(n) && !exactName) return null;
+      const raw = { exam: catalogLabel, raw_label: catalogLabel, evidence: line, value: match[2], unit: match[3].replace(/\s/g, ""),
+        ref_min: "", ref_max: "", ref_unit: "" };
+      const candidate = prepareUnprescribedNumericCandidate(raw, "", context);
+      if (!candidate.success || !units[candidate.item.concept]?.includes(normalizeUnit(raw.unit))) return null;
+      results.push(raw);
     }
     return results;
   }
 
   function extractUnprescribedDeterministicRaw(reportText, layout) {
-    const simple = extractSimpleTransaminaseReport(reportText);
+    const simple = extractSimpleNumericReport(reportText);
     if (simple) return simple;
     let raw = [];
 
@@ -11780,7 +11811,8 @@ Per r usa solo il risultato corrente numerico e un range bilaterale chiaro. Non 
 
     progressCallback?.({ phase: "unprescribed_parser", layout });
 
-    let rawResults = extractUnprescribedDeterministicRaw(reportText, layout);
+    const simpleNumericReport = extractSimpleNumericReport(reportText);
+    let rawResults = simpleNumericReport || extractUnprescribedDeterministicRaw(reportText, layout);
 
     // Qwen ha due ruoli distinti:
     // - layout ignoto: estrae l'intero referto;
@@ -11790,7 +11822,7 @@ Per r usa solo il risultato corrente numerico e un range bilaterale chiaro. Non 
     let qwenResidualEvidenceCount = 0;
     let qwenResidualChars = 0;
 
-    if (!layout && !extractSimpleTransaminaseReport(reportText)) {
+    if (!layout && !simpleNumericReport) {
       qwenPayload = await extractUnprescribedWithQwen(reportText, progressCallback);
       rawResults.push(...(qwenPayload.results || []));
       uncertain.push(...(qwenPayload.uncertain || []));

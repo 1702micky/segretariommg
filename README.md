@@ -8,7 +8,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/1702micky/segretariommg/releases/download/v0.16.9/SegretarioMMG-Setup-0.16.9.exe"><strong>↓ Scarica per Windows</strong></a>
+  <a href="https://github.com/1702micky/segretariommg/releases/download/v0.16.10/SegretarioMMG-Setup-0.16.10.exe"><strong>↓ Scarica per Windows</strong></a>
   &nbsp; · &nbsp;
   <a href="#inizia-in-quattro-passaggi">Come si installa</a>
   &nbsp; · &nbsp;
@@ -17,7 +17,7 @@
 
 <p align="center">Windows 64 bit · Google Chrome · IA sul tuo computer</p>
 
-> **Versione pilota 0.16.9.** Prima dell’uso abituale, prova il programma e controlla i risultati in Eumed. Il programma di installazione non è ancora firmato digitalmente.
+> **Versione pilota 0.16.10.** Prima dell’uso abituale, prova il programma e controlla i risultati in Eumed. Il programma di installazione non è ancora firmato digitalmente.
 
 ## Cosa puoi fare
 
@@ -41,13 +41,15 @@ Puoi incollare il testo o caricare un **PDF, un JPEG o un PNG**. Gli esami vengo
 
 Gli esami semplici possono essere inseriti come valori numerici; quelli composti, come emocromo e urine, vengono gestiti come referti estesi. Per i documenti difficili puoi usare la lettura con IA.
 
+Per **Referto non prescritto**, un testo composto solo da righe come `glicemia 91 mg/dL`, `creatinina sierica 0,82 mg/dL` o `FT4 15 pmol/L` può essere letto direttamente, senza IA. Sono gestiti diversi esami del sangue comuni, inclusi transaminasi, lipidi, elettroliti e ormoni, con nome univoco e unità compatibile. Se una riga non è interpretabile con certezza, resta il normale percorso di analisi. Urine, raccolte delle 24 ore e referti composti mantengono la loro gestione specifica. Date e intervalli mancanti non vengono inventati.
+
 **Controlla sempre l’anteprima, le voci segnalate e il risultato finale.** Durante l’inserimento tieni Eumed in primo piano e non lavorare contemporaneamente sugli stessi campi.
 
 ## Inizia in quattro passaggi
 
 ### 1 · Scarica e avvia il setup
 
-[**Scarica Segretario MMG per Windows**](https://github.com/1702micky/segretariommg/releases/download/v0.16.9/SegretarioMMG-Setup-0.16.9.exe)
+[**Scarica Segretario MMG per Windows**](https://github.com/1702micky/segretariommg/releases/download/v0.16.10/SegretarioMMG-Setup-0.16.10.exe)
 
 Salva i lavori aperti in Chrome e chiudi gli eventuali lavori IA in corso. Il primo avviso del setup spiega che **premendo OK Chrome verrà chiuso automaticamente**, anche in background, per il tuo account: i dati non salvati potrebbero andare persi. Annullando, Chrome resta aperto. Non riaprirlo fino al messaggio finale. I download possono richiedere anche un'ora o più. Avvia il file e autorizza la richiesta di Windows. Usa lo stesso account amministratore con cui lavori in Chrome.
 

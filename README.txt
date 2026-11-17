@@ -1,3 +1,9 @@
+Segretario MMG v0.16.10
+
+- Referto non prescritto: lettura diretta estesa a diversi esami numerici del sangue.
+- Formato esame valore unita; catalogo univoco e unita compatibile obbligatori. Nessun intervallo/data inventato.
+- Testi non completamente spiegati, urine e referti composti mantengono il percorso precedente.
+
 Segretario MMG v0.16.9
 
 - Referto non prescritto: riconoscimento diretto di righe AST/ALT/GOT/GPT con valore e U/L o UI/L, senza IA se tutto il testo e spiegato.
