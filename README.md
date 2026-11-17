@@ -8,7 +8,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/1702micky/segretariommg/releases/download/v0.16.5/SegretarioMMG-Setup-0.16.5.exe"><strong>↓ Scarica per Windows</strong></a>
+  <a href="https://github.com/1702micky/segretariommg/releases/download/v0.16.6/SegretarioMMG-Setup-0.16.6.exe"><strong>↓ Scarica per Windows</strong></a>
   &nbsp; · &nbsp;
   <a href="#inizia-in-quattro-passaggi">Come si installa</a>
   &nbsp; · &nbsp;
@@ -17,7 +17,7 @@
 
 <p align="center">Windows 64 bit · Google Chrome · IA sul tuo computer</p>
 
-> **Versione pilota 0.16.5.** Prima dell’uso abituale, prova il programma e controlla i risultati in Eumed. Il programma di installazione non è ancora firmato digitalmente.
+> **Versione pilota 0.16.6.** Prima dell’uso abituale, prova il programma e controlla i risultati in Eumed. Il programma di installazione non è ancora firmato digitalmente.
 
 ## Cosa puoi fare
 
@@ -47,7 +47,7 @@ Gli esami semplici possono essere inseriti come valori numerici; quelli composti
 
 ### 1 · Scarica e avvia il setup
 
-[**Scarica Segretario MMG per Windows**](https://github.com/1702micky/segretariommg/releases/download/v0.16.5/SegretarioMMG-Setup-0.16.5.exe)
+[**Scarica Segretario MMG per Windows**](https://github.com/1702micky/segretariommg/releases/download/v0.16.6/SegretarioMMG-Setup-0.16.6.exe)
 
 Chiudi completamente Chrome e gli eventuali lavori IA in corso. Non riaprire Chrome fino al messaggio finale di installazione completata. I download sono di diversi GB e, con una connessione lenta, possono richiedere anche un'ora o piu. Avvia il file e autorizza la richiesta di Windows. Usa lo stesso account amministratore con cui lavori in Chrome.
 
@@ -116,6 +116,18 @@ Se lasci attiva l’opzione del setup, il programma cerca nuove versioni all’a
 Alla riapertura Chrome carica la versione aggiornata. Non devi scaricare manualmente lo ZIP di aggiornamento. Per controllare subito puoi usare il collegamento **Aggiorna-Segretario** creato sul desktop, dopo aver chiuso Chrome.
 
 L’aggiornamento automatico riguarda l’estensione. Modelli IA, Ollama e programma di installazione hanno una gestione separata.
+
+## Come si disinstalla
+
+1. Apri `chrome://extensions` e premi **Rimuovi** sulla scheda di Segretario MMG. Poi chiudi completamente Chrome.
+2. Vai in **Impostazioni di Windows → App → App installate**, cerca **Segretario MMG** e scegli **Disinstalla**. Puoi anche cercare **Disinstalla Segretario MMG** nel menu Start.
+3. Conferma la richiesta di Windows e quella del programma.
+
+La disinstallazione rimuove i file installati, l'avvio automatico, il controllo aggiornamenti e il collegamento Aggiorna-Segretario. Rimuove dalle impostazioni Ollama l'autorizzazione riservata a questa estensione e ripristina l'indirizzo precedente del servizio, se non lo hai cambiato nel frattempo. Riavvia Ollama o Windows per applicare queste impostazioni.
+
+**Ollama e i modelli IA restano installati**, così puoi usarli con altri programmi. I dati in Eumed non vengono modificati. Log, backup e file aggiunti manualmente sono conservati; il messaggio finale indica dove trovarli.
+
+La voce di disinstallazione viene aggiunta dal **nuovo setup**: se hai già installato una versione precedente, esegui il setup aggiornato. Il solo aggiornamento automatico dell'estensione non aggiunge questa funzione.
 
 ## Domande frequenti
 

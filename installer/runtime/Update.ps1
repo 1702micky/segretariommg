@@ -68,6 +68,14 @@ try {
             New-Item -ItemType Directory -Force (Split-Path $dest) | Out-Null
             Copy-Item -LiteralPath (Join-Path $unpack ('extension/'+$f.path)) -Destination $dest -Force
         }
+        $recordFile=Join-Path $State 'installation.json'
+        if(Test-Path -LiteralPath $recordFile){
+            $record=Get-Content -LiteralPath $recordFile -Raw|ConvertFrom-Json
+            $record.files=@(@($record.files)+@($inventory.files|ForEach-Object path)|Sort-Object -Unique)
+            $record.version=$next.ToString()
+            $record|ConvertTo-Json -Depth 5|Set-Content -Encoding UTF8 ($recordFile+'.tmp')
+            Move-Item -LiteralPath ($recordFile+'.tmp') -Destination $recordFile -Force
+        }
     } catch {
         foreach($c in $changed) { if($c.existed) { Copy-Item -LiteralPath $c.old -Destination $c.dest -Force } else { Remove-Item -LiteralPath $c.dest -ErrorAction SilentlyContinue } }
         throw

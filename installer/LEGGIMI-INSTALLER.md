@@ -1,6 +1,6 @@
-# Segretario MMG - setup pilota 0.16.5
+# Segretario MMG - setup pilota 0.16.6
 
-Il file SegretarioMMG-Setup-0.16.5.exe e un installer unico Windows x64 che richiede elevazione UAC. E una build pilota compilata e controllata, NON ancora collaudata con installazione completa su un Windows pulito. Non e firmata digitalmente.
+Il file SegretarioMMG-Setup-0.16.6.exe e un installer unico Windows x64 che richiede elevazione UAC. E una build pilota compilata e controllata, NON ancora collaudata con installazione completa su un Windows pulito. Non e firmata digitalmente.
 
 ## Cosa fa
 
@@ -52,6 +52,16 @@ SHA256 controlla integrita; la fonte di fiducia resta il repository GitHub HTTPS
 - Archivio costruito con lista esplicita: solo runtime; nessun PDF, XLSX, sn*.txt, log, test o backup personale.
 - Rilettura indipendente e verifica SHA256 di ciascun file in archivio.
 - Test automatici dell'estensione e dei modelli; controlli di sintassi JS.
+
+## Disinstallazione
+
+Rimuovi l'estensione da chrome://extensions, poi chiudi Chrome. In Impostazioni Windows > App > App installate cerca Segretario MMG e premi Disinstalla, oppure usa Disinstalla Segretario MMG nel menu Start. Richiede lo stesso account Windows usato per installare e la conferma amministratore.
+
+Vengono rimossi solo i file registrati come installati, le attivita SegretarioMMG-Startup/Update, il collegamento Aggiorna-Segretario e la voce Windows. Le altre origini Ollama sono preservate; OLLAMA_HOST viene ripristinato solo se corrisponde ancora al valore impostato dal setup. Riavvia Ollama o Windows per applicare le impostazioni.
+
+Ollama e i modelli IA restano installati. Log, backup e file aggiunti manualmente vengono conservati. Nessun dato Eumed viene modificato. Per aggiungere la disinstallazione alle installazioni precedenti serve eseguire il nuovo setup.
+
+Verifiche automatiche su file sintetici: rifiuto di percorsi esterni e junction, conservazione dei file estranei e delle altre origini, nessuna rimozione ricorsiva della cartella del programma. Il flusso completo App installate/UAC richiede ancora una prova su Windows pulito.
 
 ## Limiti del collaudo
 

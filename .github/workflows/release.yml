@@ -34,6 +34,8 @@ jobs:
         run: |
           & .\tests\installer-wait.test.ps1
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          & .\tests\uninstall.test.ps1
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
           python tests/download-progress.test.py
           exit $LASTEXITCODE
       - name: Prepare PDF runtime

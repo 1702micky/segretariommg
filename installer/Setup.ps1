@@ -74,7 +74,10 @@ try {
     $extensionId=-join ($hash[0..15]|ForEach-Object{[char](97+($_ -shr 4));[char](97+($_ -band 15))})
     $origin='chrome-extension://'+$extensionId
     $previous=[Environment]::GetEnvironmentVariable('OLLAMA_ORIGINS','User')
-    @{origins=$previous;host=[Environment]::GetEnvironmentVariable('OLLAMA_HOST','User')}|ConvertTo-Json|Set-Content -Encoding UTF8 (Join-Path $State 'previous-ollama-environment.json')
+    $previousEnvironment=Join-Path $State 'previous-ollama-environment.json'
+    if(-not (Test-Path -LiteralPath $previousEnvironment)){
+        @{origins=$previous;host=[Environment]::GetEnvironmentVariable('OLLAMA_HOST','User')}|ConvertTo-Json|Set-Content -Encoding UTF8 $previousEnvironment
+    }
     $origins=@($previous -split ','|Where-Object {$_ -and $_.Trim() -ne $origin})+@($origin)
     [Environment]::SetEnvironmentVariable('OLLAMA_ORIGINS',($origins -join ','),'User');$env:OLLAMA_ORIGINS=$origins -join ','
     [Environment]::SetEnvironmentVariable('OLLAMA_HOST','127.0.0.1:11434','User');$env:OLLAMA_HOST='127.0.0.1:11434'
@@ -112,6 +115,24 @@ try {
     $shell=New-Object -ComObject WScript.Shell
     $link=$shell.CreateShortcut((Join-Path ([Environment]::GetFolderPath('Desktop')) 'Aggiorna-Segretario.lnk'))
     $link.TargetPath='powershell.exe';$link.Arguments='-NoProfile -ExecutionPolicy Bypass -File "'+(Join-Path $runtime 'Update.ps1')+'"';$link.Save()
+    # Record only owned files: uninstall must preserve documents and development files.
+    $owned=@($inventory.files|ForEach-Object path)+@('COME-INIZIARE.txt','installation-defaults.json')
+    $owned+=@('Startup.ps1','Update.ps1','settings.json','Download.Helpers.ps1','Uninstall.Helpers.ps1','Uninstall.ps1')|ForEach-Object {'installer/runtime/'+$_}
+    $recordFile=Join-Path $State 'installation.json'
+    if(Test-Path -LiteralPath $recordFile){$owned+=@((Get-Content -LiteralPath $recordFile -Raw|ConvertFrom-Json).files)}
+    . (Join-Path $runtime 'Uninstall.Helpers.ps1')
+    $owned=@($owned|Sort-Object -Unique)
+    Get-OwnedFilePaths -Root $Root -RelativePaths $owned|Out-Null
+    @{root=$Root;userSid=$identity.User.Value;version=$manifest.version;files=$owned}|ConvertTo-Json -Depth 5|Set-Content -Encoding UTF8 $recordFile
+    $powershellExe=Join-Path $PSHOME 'powershell.exe'
+    $uninstallArguments='-NoProfile -ExecutionPolicy Bypass -File "'+(Join-Path $runtime 'Uninstall.ps1')+'"'
+    $uninstallLink=$shell.CreateShortcut((Join-Path ([Environment]::GetFolderPath('Programs')) 'Disinstalla Segretario MMG.lnk'))
+    $uninstallLink.TargetPath=$powershellExe;$uninstallLink.Arguments=$uninstallArguments;$uninstallLink.Save()
+    $registry='HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\SegretarioMMG'
+    New-Item -Path $registry -Force|Out-Null
+    $properties=@{DisplayName='Segretario MMG';DisplayVersion=$manifest.version;Publisher='Segretario MMG';InstallLocation=$Root;UninstallString=('"'+$powershellExe+'" '+$uninstallArguments);URLInfoAbout='https://github.com/1702micky/segretariommg'}
+    foreach($property in $properties.Keys){New-ItemProperty -Path $registry -Name $property -Value $properties[$property] -PropertyType String -Force|Out-Null}
+    foreach($property in 'NoModify','NoRepair'){New-ItemProperty -Path $registry -Name $property -Value 1 -PropertyType DWord -Force|Out-Null}
     $chrome=@("$env:ProgramFiles\Google\Chrome\Application\chrome.exe","${env:ProgramFiles(x86)}\Google\Chrome\Application\chrome.exe","$env:LOCALAPPDATA\Google\Chrome\Application\chrome.exe")|Where-Object{Test-Path $_}|Select-Object -First 1
     # Le istruzioni restano leggibili anche se Chrome blocca la navigazione automatica.
     [Windows.Forms.MessageBox]::Show((Get-Content $help -Raw),'Installazione verificata')|Out-Null

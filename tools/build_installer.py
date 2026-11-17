@@ -31,6 +31,7 @@ with zipfile.ZipFile(update) as z:
  assert not any(n.lower().endswith(('.pdf','.xlsx','.log')) or '/sn' in n for n in z.namelist())
 with zipfile.ZipFile(package) as z:
  assert 'Setup.ps1' in z.namelist() and 'Setup.Helpers.ps1' in z.namelist() and 'runtime/Startup.ps1' in z.namelist()
+ assert 'runtime/Uninstall.ps1' in z.namelist() and 'runtime/Uninstall.Helpers.ps1' in z.namelist()
 for p in [exe,update]:
  (output/(p.name+'.sha256')).write_text(hashlib.sha256(p.read_bytes()).hexdigest()+'  '+p.name+'\n')
 print(json.dumps({'version':version,'extension_files':len(names),'installer_bytes':exe.stat().st_size,'update_bytes':update.stat().st_size}))

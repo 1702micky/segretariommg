@@ -1,7 +1,14 @@
+Segretario MMG v0.16.6
+
+- Disinstallazione da App installate di Windows e menu Start; serve il nuovo setup.
+- Rimuove i file installati e le attivita automatiche. Chrome richiede rimozione manuale dell'estensione.
+- Conserva Ollama, modelli, log, backup e file aggiunti manualmente.
+- Rimuove l'origine MMG da Ollama preservando le altre autorizzazioni.
+
 Segretario MMG v0.16.5
 
 - Setup: apre a fine installazione le estensioni Chrome e la home GitHub.
-- Collegamento desktop Apri estensioni Chrome.
+- Download: MB e barra percentuale se il totale e disponibile. Nessun collegamento alle pagine sul desktop.
 - Home GitHub: illustrazione MMG e istruzioni di trascinamento.
 
 Segretario MMG v0.16.2
