@@ -45,13 +45,13 @@
     <text x="590" y="366" fill="#666" font-size="12">in questo profilo Chrome.</text>
     <rect x="575" y="396" width="518" height="82" rx="7" fill="#f5f6f7" stroke="#aeb4ba"/>
     <text x="591" y="423" fill="#222" font-size="14" font-weight="700">REFERTO GIÀ PRESCRITTO</text>
-    <text x="591" y="451" fill="#555" font-size="12">Compila gli esami già presenti nella tabella Eumed.</text>
+    <text x="591" y="451" fill="#555" font-size="12">Registrazione esiti / Inserimento da prescrizioni.</text>
     <rect x="575" y="490" width="518" height="82" rx="7" fill="#f5f6f7" stroke="#aeb4ba"/>
     <text x="591" y="517" fill="#222" font-size="14" font-weight="700">REFERTO NON PRESCRITTO</text>
-    <text x="591" y="545" fill="#555" font-size="12">Crea una riga per ogni esame riconosciuto nel catalogo.</text>
+    <text x="591" y="545" fill="#555" font-size="12">Registrazione esiti / Inserimento senza prescrizioni.</text>
     <rect x="575" y="584" width="518" height="82" rx="7" fill="#f5f6f7" stroke="#aeb4ba"/>
     <text x="591" y="611" fill="#222" font-size="14" font-weight="700">PRESCRIVI ESAMI DA LISTA</text>
-    <text x="591" y="637" fill="#555" font-size="12">Incolla una lista oppure carica PDF, JPEG o PNG.</text>
-    <text x="591" y="654" fill="#555" font-size="12">Le liste con X e spunte vengono lette dall’IA.</text>
+    <text x="591" y="637" fill="#555" font-size="12">Apri Accertamenti, non Dashboard.</text>
+    <text x="591" y="654" fill="#555" font-size="12">Incolla una lista oppure carica un file.</text>
   </g>
 </svg>

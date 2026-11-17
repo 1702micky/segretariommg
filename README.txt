@@ -1,3 +1,9 @@
+Segretario MMG v0.16.1
+
+- Report diagnostico TXT locale in tutte le modalita: tempi, conteggi, eventi IA, retry.
+- Nessuna copia del referto, valori, nomi file o URL nel report. Condivisione solo manuale.
+- Indicazioni precise delle sezioni Eumed nella schermata iniziale e durante il lavoro.
+
 Segretario MMG v0.16.0
 
 - Build installer pilota in outputs; guida LEGGIMI-INSTALLER.md.

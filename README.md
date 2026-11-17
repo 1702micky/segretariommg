@@ -8,7 +8,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/1702micky/segretariommg/releases/download/v0.16.0/SegretarioMMG-Setup-0.16.0.exe"><strong>↓ Scarica per Windows</strong></a>
+  <a href="https://github.com/1702micky/segretariommg/releases/download/v0.16.1/SegretarioMMG-Setup-0.16.1.exe"><strong>↓ Scarica per Windows</strong></a>
   &nbsp; · &nbsp;
   <a href="#inizia-in-quattro-passaggi">Come si installa</a>
   &nbsp; · &nbsp;
@@ -17,7 +17,7 @@
 
 <p align="center">Windows 64 bit · Google Chrome · IA sul tuo computer</p>
 
-> **Versione pilota 0.16.0.** Prima dell’uso abituale, prova il programma e controlla i risultati in Eumed. Il programma di installazione non è ancora firmato digitalmente.
+> **Versione pilota 0.16.1.** Prima dell’uso abituale, prova il programma e controlla i risultati in Eumed. Il programma di installazione non è ancora firmato digitalmente.
 
 ## Cosa puoi fare
 
@@ -47,7 +47,7 @@ Gli esami semplici possono essere inseriti come valori numerici; quelli composti
 
 ### 1 · Scarica e avvia il setup
 
-[**Scarica Segretario MMG per Windows**](https://github.com/1702micky/segretariommg/releases/download/v0.16.0/SegretarioMMG-Setup-0.16.0.exe)
+[**Scarica Segretario MMG per Windows**](https://github.com/1702micky/segretariommg/releases/download/v0.16.1/SegretarioMMG-Setup-0.16.1.exe)
 
 Chiudi completamente Chrome e gli eventuali lavori IA in corso. Avvia il file e autorizza la richiesta di Windows. Usa lo stesso account amministratore con cui lavori in Chrome.
 
@@ -77,7 +77,15 @@ Se avevi una vecchia copia di Segretario MMG, disattivala prima di aggiungere qu
 
 ### 4 · Apri Eumed
 
-Apri la sezione in cui vuoi lavorare, premi il pulsante **MMG** e scegli l’attività. Nella schermata iniziale trovi anche il modello IA: puoi selezionare un altro modello già installato o premere **Aggiorna elenco**.
+Apri la sezione corretta, premi il pulsante **MMG** e scegli l’attività:
+
+| Attività | Dove andare in Eumed |
+|---|---|
+| Referto già prescritto | **Registrazione esiti → Inserimento da prescrizioni** |
+| Referto non prescritto | **Registrazione esiti → Inserimento senza prescrizioni** |
+| Prescrivi esami da lista | **Accertamenti**, non Dashboard |
+
+Nella schermata iniziale trovi anche il modello IA: puoi selezionare un altro modello già installato o premere **Aggiorna elenco**.
 
 Per la prima prova usa una breve lista di esami e controlla l’anteprima prima di inserire i dati.
 
@@ -108,7 +116,7 @@ Il pacchetto qui distribuito non richiede un account sviluppatore Chrome. L’es
 <details>
 <summary><strong>Posso usare un’altra IA?</strong></summary>
 
-Sì. Il selettore mostra i modelli locali presenti in Ollama e ricorda la scelta nel profilo Chrome. Per leggere foto e liste con spunte serve un modello che supporti anche le immagini. I modelli alternativi vanno provati: possono dare risultati e tempi diversi. Il ragionamento esteso è disattivato nelle richieste.
+Sì. Il selettore mostra i modelli locali presenti in Ollama e ricorda la scelta nel profilo Chrome. Per leggere foto e liste con spunte serve un modello che supporti anche le immagini. I modelli alternativi vanno provati: possono dare risultati e tempi diversi. Il ragionamento esteso è disattivato di default.
 
 </details>
 
@@ -129,7 +137,13 @@ Non è stato associato o interpretato con sufficiente certezza. Controlla il doc
 <details>
 <summary><strong>Come segnalo un problema?</strong></summary>
 
-Apri una [segnalazione su GitHub](https://github.com/1702micky/segretariommg/issues), indicando versione e passaggi per riprodurre il problema. **Non allegare referti o schermate con dati personali**: usa esempi sintetici o completamente anonimizzati.
+Apri una [segnalazione su GitHub](https://github.com/1702micky/segretariommg/issues), indicando versione, modalità e passaggi per riprodurre il problema.
+
+1. Nel pannello premi **Scarica report diagnostico (.txt)** e allega il file. È disponibile in tutte e tre le modalità dopo l’elaborazione e contiene tempi, conteggi e stato delle operazioni, senza copiare il testo del referto.
+2. **Copia e incolla i dati anonimizzati del referto** utili a riprodurre l’errore: nome dell’esame, valore, unità e intervallo di riferimento, mantenendo le righe vicine quando servono a capire la struttura. Spiega cosa ti aspettavi e cosa è stato inserito.
+3. Elimina prima nomi, codice fiscale, data di nascita, indirizzi, numeri di pratica e ogni altro elemento identificativo. Se non puoi anonimizzare con certezza, usa un esempio sintetico.
+
+**Non allegare il PDF originale o schermate con dati personali.** Le segnalazioni di questo repository sono pubbliche. Controlla sempre anche il file diagnostico prima di condividerlo; non viene inviato automaticamente.
 
 </details>
 

@@ -3,7 +3,7 @@
 
   // ============================================================
   // SEGRETARIO MMG
-  // Versione 0.16.0
+  // Versione 0.16.1
   //
   // - Estrazione con Qwen 3.5 4B locale
   // - Comunicazione diretta Ollama via service worker Chrome
@@ -4845,6 +4845,7 @@
     numPredict = CONFIG.aiMaxTokens,
     formatSchema = null
   ) {
+    const aiRequestStarted = Date.now();
     await aiModelInitialization;
     await aiModelSelectionTask;
     if (!selectedAiModelInfo || selectedAiModelInfo.completion === false) {
@@ -4902,6 +4903,10 @@
         }
 
         if (message.type === "OLLAMA_RESULT") {
+          recordDiagnosticEvent("ia_completata", { durationMs: Date.now() - aiRequestStarted,
+            inputCharacters: messages.reduce((n, item) => n + String(item.content || "").length, 0),
+            outputCharacters: String(message.content || "").length,
+            images: messages.reduce((n, item) => n + (item.images?.length || 0), 0) });
           const content = message.content;
           cleanup();
           resolve(content);
@@ -4909,6 +4914,7 @@
         }
 
         if (message.type === "OLLAMA_ERROR") {
+          recordDiagnosticEvent("ia_errore", { durationMs: Date.now() - aiRequestStarted });
           cleanup();
           reject(
             new Error(
@@ -14043,15 +14049,15 @@ button:disabled {
       <div class="mode-buttons">
         <button class="mode-choice" id="modePrescribed" type="button">
           REFERTO GIÀ PRESCRITTO
-          <small>Compila gli esami già presenti nella tabella Eumed.</small>
+          <small>Apri Registrazione esiti → Inserimento da prescrizioni.</small>
         </button>
         <button class="mode-choice" id="modeUnprescribed" type="button">
           REFERTO NON PRESCRITTO
-          <small>Crea una riga per ogni esame riconosciuto usando il catalogo prescrivibile.</small>
+          <small>Apri Registrazione esiti → Inserimento senza prescrizioni.</small>
         </button>
         <button class="mode-choice" id="modePrescriptionList" type="button">
           PRESCRIVI ESAMI DA LISTA
-          <small>Incolla una lista oppure carica PDF/JPEG/PNG; le liste con X/spunte vengono lette da IA per immagini.</small>
+          <small>Apri Accertamenti, non Dashboard. Puoi incollare una lista o caricare un file.</small>
         </button>
       </div>
     </div>
@@ -14101,6 +14107,8 @@ button:disabled {
     <div class="status">
       <div class="status-title">Stato</div>
       <div id="results">Incolla un referto.</div>
+      <button id="downloadDiagnostics" type="button" style="width:100%;margin-top:10px;padding:8px">Scarica report diagnostico (.txt)</button>
+      <div class="small">Da allegare alle segnalazioni insieme ai valori del referto anonimizzati. Il report contiene tempi e conteggi, non il testo del referto.</div>
     </div>
     </div>
   </div>
@@ -14140,6 +14148,61 @@ button:disabled {
   let validated = [];
   let validatedLongReports = [];
   let isBusy = false;
+  let diagnosticEvents = [];
+  let diagnosticOperationStarted = null;
+  const diagnosticSessionStarted = Date.now();
+
+  function recordDiagnosticEvent(kind, data = {}) {
+    const allowedKinds = ["operazione_avviata", "operazione_terminata", "ia_completata", "ia_errore"];
+    if (!allowedKinds.includes(kind)) return;
+    const allowedKeys = ["durationMs", "inputCharacters", "outputCharacters", "images", "numeric", "complex", "uncertain", "requested", "completed", "retries", "retriedRows", "catalogSelectionMs", "interrupted", "error"];
+    const safe = {};
+    for (const key of allowedKeys) {
+      const value = data[key];
+      if ((typeof value === "number" && Number.isFinite(value)) || typeof value === "boolean") safe[key] = value;
+    }
+    const mode = ["prescribed", "unprescribed", "prescription_list"].includes(activeWorkflowMode) ? activeWorkflowMode : "non_selezionata";
+    diagnosticEvents.push({ elapsedMs: Date.now() - diagnosticSessionStarted, mode, kind, ...safe });
+    if (diagnosticEvents.length > 300) diagnosticEvents.shift();
+  }
+
+  function diagnosticSummaryFromText(text) {
+    const result = {};
+    const counts = text.match(/Righe create e confermate:\s*(\d+)\s*\/\s*(\d+)/i);
+    if (counts) { result.completed = Number(counts[1]); result.requested = Number(counts[2]); }
+    const numeric = text.match(/Risultati numerici:\s*(\d+)/i);
+    const complex = text.match(/Referti complessi:\s*(\d+)/i);
+    const uncertain = text.match(/(\d+)\s+esami\/dati non inseriti automaticamente/i);
+    if (numeric) result.numeric = Number(numeric[1]);
+    if (complex) result.complex = Number(complex[1]);
+    if (uncertain) result.uncertain = Number(uncertain[1]);
+    const retries = text.match(/Retry automatici:\s*(\d+)\s*su\s*(\d+)/i);
+    if (retries) { result.retries = Number(retries[1]); result.retriedRows = Number(retries[2]); }
+    const selection = text.match(/Tempo selezione catalogo:\s*(\d+(?:[.,]\d+)?)\s*s/i);
+    if (selection) result.catalogSelectionMs = Math.round(Number(selection[1].replace(",", ".")) * 1000);
+    result.interrupted = /interrott[oa]|Stop su|Conferma inviata, ma/i.test(text);
+    result.error = /Errore durante|non completat[oa]/i.test(text);
+    return result;
+  }
+
+  function createDiagnosticReport(version, mode, model, events) {
+    return ["SEGRETARIO MMG - REPORT DIAGNOSTICO", `Versione: ${version}`, `Modalita: ${mode || "non selezionata"}`,
+      `Modello IA: ${model}`, "Ragionamento esteso nelle richieste: disattivato",
+      "Contenuto: tempi relativi, conteggi e stato delle operazioni. Nessun testo o valore del referto, nome file, URL o dato del paziente.",
+      "Gli eventi descrivono questa pagina dall'apertura; massimo 300 eventi. Il report non sostituisce la verifica dei risultati.",
+      "Per assistenza: incollare separatamente nomi esami, valori, unita e intervalli, dopo anonimizzazione. Non allegare documenti identificabili.",
+      "", JSON.stringify(events, null, 2)].join("\n");
+  }
+
+  shadow.getElementById("downloadDiagnostics").addEventListener("click", () => {
+    const report = createDiagnosticReport(chrome.runtime.getManifest().version, activeWorkflowMode, CONFIG.aiModel, diagnosticEvents);
+    const url = URL.createObjectURL(new Blob([report], { type: "text/plain;charset=utf-8" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `SegretarioMMG-diagnostica-${new Date().toISOString().slice(0, 10)}.txt`;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  });
   const aiModelSelect = shadow.getElementById("aiModelSelect");
   const aiModelRefresh = shadow.getElementById("aiModelRefresh");
   const aiModelStatus = shadow.getElementById("aiModelStatus");
@@ -14279,6 +14342,7 @@ button:disabled {
         ? "Modalità: <b>referto non prescritto</b>"
         : "Modalità: <b>referto già prescritto</b>";
     modeLabel.innerHTML += `<span class="small">IA: ${selectedAiModelInfo ? escapeHtml(CONFIG.aiModel) : "modello non disponibile"}</span>`;
+    modeLabel.innerHTML += `<span class="small">Apri: ${prescriptionList ? "Accertamenti (non Dashboard)" : unprescribed ? "Registrazione esiti → Inserimento senza prescrizioni" : "Registrazione esiti → Inserimento da prescrizioni"}</span>`;
 
     autoButton.textContent = prescriptionList
       ? "PRESCRIVI ESAMI DALLA LISTA"
@@ -14330,6 +14394,19 @@ button:disabled {
   }
 
   function setBusy(value) {
+    if (value && !isBusy) {
+      diagnosticOperationStarted = Date.now();
+      recordDiagnosticEvent("operazione_avviata");
+    } else if (!value && isBusy && diagnosticOperationStarted !== null) {
+      recordDiagnosticEvent("operazione_terminata", {
+        durationMs: Date.now() - diagnosticOperationStarted,
+        numeric: activeWorkflowMode === WORKFLOW_MODE.UNPRESCRIBED ? unprescribedNumeric.length : validated.length,
+        complex: activeWorkflowMode === WORKFLOW_MODE.UNPRESCRIBED ? unprescribedComplex.length : validatedLongReports.length,
+        uncertain: activeWorkflowMode === WORKFLOW_MODE.PRESCRIPTION_LIST ? prescriptionListUncertain.length : unprescribedUncertain.length,
+        ...diagnosticSummaryFromText(resultsBox.textContent || "")
+      });
+      diagnosticOperationStarted = null;
+    }
     isBusy = value;
     aiModelSelect.disabled = value || aiModelsLoading || aiModelSelecting || !aiModelSelect.options.length;
     aiModelRefresh.disabled = value || aiModelsLoading || aiModelSelecting;
@@ -14341,6 +14418,7 @@ button:disabled {
     autoButton.disabled = value;
     clearButton.disabled = value;
     textarea.disabled = value;
+    shadow.getElementById("downloadDiagnostics").disabled = value;
 
     if (value) contentBox.classList.add("busy");
     else contentBox.classList.remove("busy");

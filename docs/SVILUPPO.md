@@ -7,7 +7,7 @@ La pagina iniziale è dedicata a chi usa il programma. Qui sono raccolti i rifer
 ```powershell
 node --check segretario.js
 node --check background.js
-node --test tests/vaadin-regression.test.cjs tests/ollama-models.test.cjs
+node --test tests/vaadin-regression.test.cjs tests/ollama-models.test.cjs tests/diagnostics.test.cjs
 ```
 
 ## Installer e release

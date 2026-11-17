@@ -1,0 +1,42 @@
+name: Segnala un problema
+description: Aiutaci a riprodurre un problema senza condividere dati personali.
+title: "[Problema] "
+body:
+  - type: markdown
+    attributes:
+      value: "Questa segnalazione sarà pubblica. Non caricare PDF originali o schermate identificabili. Rimuovi nomi, codice fiscale, data di nascita, indirizzi, numeri di pratica e altri identificativi. Se hai dubbi, usa dati sintetici."
+  - type: input
+    id: version
+    attributes:
+      label: Versione di Segretario MMG
+      placeholder: "Ad esempio 0.16.1"
+    validations:
+      required: true
+  - type: dropdown
+    id: mode
+    attributes:
+      label: Modalità usata
+      options:
+        - Referto già prescritto — Registrazione esiti / Inserimento da prescrizioni
+        - Referto non prescritto — Registrazione esiti / Inserimento senza prescrizioni
+        - Prescrivi esami da lista — Accertamenti
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Cosa hai fatto e cosa è successo?
+      description: Descrivi i passaggi, il risultato atteso e quello ottenuto.
+    validations:
+      required: true
+  - type: textarea
+    id: anonymous_values
+    attributes:
+      label: Valori del referto anonimizzati o esempio sintetico
+      description: Copia e incolla esami, valori, unità e intervalli. Mantieni le righe vicine utili a riprodurre il problema. Non includere identificativi.
+      render: text
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Report diagnostico
+      description: Premi “Scarica report diagnostico (.txt)” nel pannello dopo l’operazione, controlla il contenuto e allega il file qui. Puoi anche incollarne il contenuto.

@@ -1,6 +1,6 @@
-# Segretario MMG - setup pilota 0.16.0
+# Segretario MMG - setup pilota 0.16.1
 
-Il file SegretarioMMG-Setup-0.16.0.exe e un installer unico Windows x64 che richiede elevazione UAC. E una build pilota compilata e controllata, NON ancora collaudata con installazione completa su un Windows pulito. Non e firmata digitalmente.
+Il file SegretarioMMG-Setup-0.16.1.exe e un installer unico Windows x64 che richiede elevazione UAC. E una build pilota compilata e controllata, NON ancora collaudata con installazione completa su un Windows pulito. Non e firmata digitalmente.
 
 ## Cosa fa
 
