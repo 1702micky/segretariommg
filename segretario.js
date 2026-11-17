@@ -3,7 +3,7 @@
 
   // ============================================================
   // SEGRETARIO MMG
-  // Versione 0.16.14
+  // Versione 0.16.15
   //
   // - Estrazione con Qwen 3.5 4B locale
   // - Comunicazione diretta Ollama via service worker Chrome
@@ -10528,11 +10528,11 @@ ${sourceText}
 
     // Creatinina urinaria: il catalogo distingue 24h e voce per calcolo ACR.
     // Se il referto dice solo "U-creatinina" non inventiamo quale delle due.
-    if (n.includes("CREATININA") && /ACR|ALBUMIN.?CREAT/.test(n)) return exact("90.16.14_7");
+    if (n.includes("CREATININA") && /ACR|ALBUMIN.?CREAT/.test(n)) return exact("90.16.15_7");
     if (concept === "CREATININE_URINE" || (concept === "CREATININE" && detectSpecimen(query) === "URINE")) {
-      if (/24 ?H|24 ORE|GIORNALIER/.test(n)) return exact("90.16.14_3");
-      if (/ACR|ALBUMIN.?CREAT|RAPPORTO/.test(n)) return exact("90.16.14_7");
-      if (context?.urineCreatinineForAcr && !/MINZ|DROGHE|PERITONE|DIALISI/.test(n)) return exact("90.16.14_7");
+      if (/24 ?H|24 ORE|GIORNALIER/.test(n)) return exact("90.16.15_3");
+      if (/ACR|ALBUMIN.?CREAT|RAPPORTO/.test(n)) return exact("90.16.15_7");
+      if (context?.urineCreatinineForAcr && !/MINZ|DROGHE|PERITONE|DIALISI/.test(n)) return exact("90.16.15_7");
       return { blocked: true, reason: "Creatinina urinaria senza tipologia prescrivibile univoca" };
     }
 
@@ -14343,6 +14343,13 @@ button:disabled {
 
   <div class="content" id="content">
     <div class="mode-chooser" id="modeChooser">
+      <div style="margin-bottom:12px;padding:10px;background:#edf4fa;border-radius:6px">
+        <b id="extensionVersion"></b>
+        <div id="extensionUpdateStatus" class="small" role="status" aria-live="polite">Verifica aggiornamenti GitHub...</div>
+        <button id="extensionUpdateCheck" type="button" style="margin-top:6px">Verifica aggiornamenti</button>
+        <a id="extensionUpdateDownload" target="_blank" rel="noopener noreferrer" style="display:none;margin:8px 0;font-weight:bold">Scarica aggiornamento</a>
+        <div id="extensionUpdateHelp" class="small" hidden>Avvia il setup scaricato e salva prima i lavori in Chrome: dopo il tuo OK il setup chiudera Chrome. Gli aggiornamenti automatici richiedono Chrome completamente chiuso.</div>
+      </div>
       <div class="mode-title">Cosa vuoi fare?</div>
       <div class="mode-subtitle">
         Apri in Eumed la sezione in cui vuoi lavorare, poi scegli un'attività.
@@ -14522,6 +14529,45 @@ button:disabled {
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   });
   const aiModelSelect = shadow.getElementById("aiModelSelect");
+  const extensionVersion = shadow.getElementById("extensionVersion");
+  const extensionUpdateStatus = shadow.getElementById("extensionUpdateStatus");
+  const extensionUpdateCheck = shadow.getElementById("extensionUpdateCheck");
+  const extensionUpdateDownload = shadow.getElementById("extensionUpdateDownload");
+  const extensionUpdateHelp = shadow.getElementById("extensionUpdateHelp");
+  let extensionUpdateChecking = false;
+  extensionVersion.textContent = `Segretario MMG - versione ${chrome.runtime.getManifest().version}`;
+
+  async function refreshExtensionUpdate(force = false) {
+    if (isBusy || extensionUpdateChecking) return;
+    extensionUpdateChecking = true;
+    extensionUpdateCheck.disabled = true;
+    extensionUpdateDownload.style.display = "none";
+    extensionUpdateDownload.removeAttribute("href");
+    extensionUpdateHelp.hidden = true;
+    extensionUpdateStatus.textContent = "Verifica aggiornamenti GitHub...";
+    try {
+      const response = await requestOllamaMetadata({ type: "SEGRETARIO_CHECK_UPDATE", force });
+      const info = response.update;
+      const messages = {
+        current: "Sei aggiornato all'ultima versione disponibile su GitHub.",
+        available: `Disponibile la versione ${info.latest}.`,
+        pending: `Versione ${info.latest} in pubblicazione: il setup non e ancora disponibile.`,
+        ahead: "La versione installata e piu recente della release GitHub rilevata."
+      };
+      extensionUpdateStatus.textContent = (messages[info.state] || "Stato aggiornamento non disponibile.") +
+        ` Ultima verifica: ${new Date(info.checkedAt).toLocaleString("it-IT")}.`;
+      if (info.state === "available" && info.downloadUrl) {
+        extensionUpdateDownload.href = info.downloadUrl;
+        extensionUpdateDownload.style.display = "block";
+        extensionUpdateHelp.hidden = false;
+      }
+    } catch {
+      extensionUpdateStatus.textContent = "Impossibile verificare gli aggiornamenti su GitHub. Controlla la connessione e riprova.";
+    } finally {
+      extensionUpdateChecking = false;
+      extensionUpdateCheck.disabled = isBusy;
+    }
+  }
   const aiModelRefresh = shadow.getElementById("aiModelRefresh");
   const aiModelStatus = shadow.getElementById("aiModelStatus");
   let selectedAiModelInfo = null;
@@ -14726,6 +14772,7 @@ button:disabled {
       diagnosticOperationStarted = null;
     }
     isBusy = value;
+    extensionUpdateCheck.disabled = value || extensionUpdateChecking;
     aiModelSelect.disabled = value || aiModelsLoading || aiModelSelecting || !aiModelSelect.options.length;
     aiModelRefresh.disabled = value || aiModelsLoading || aiModelSelecting;
     extractButton.disabled = value;
@@ -17984,6 +18031,10 @@ button:disabled {
 
 
   modePrescribedButton.addEventListener("click", () => selectWorkflowMode(WORKFLOW_MODE.PRESCRIBED));
+  extensionUpdateCheck.addEventListener("click", () => refreshExtensionUpdate(true));
+  extensionUpdateDownload.addEventListener("click", event => {
+    if (isBusy) event.preventDefault();
+  });
   aiModelSelect.addEventListener("change", () => {
     if (isBusy || aiModelsLoading) return;
     aiModelSelectionTask = applyAiModelSelection(aiModelSelect.value);
@@ -18197,6 +18248,7 @@ button:disabled {
   };
 
   aiModelInitialization = refreshAiModels();
+  refreshExtensionUpdate();
   // Precarica il catalogo locale in background; l'analisi lo attende comunque.
   ensureLabCatalog();
 

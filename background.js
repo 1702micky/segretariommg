@@ -1,5 +1,5 @@
 // Segretario MMG - background.js
-// Versione 0.16.14
+// Versione 0.16.15
 // Parla direttamente con Ollama locale via streaming NDJSON.
 
 const OLLAMA_URL = "http://127.0.0.1:11434/api/chat";
@@ -47,7 +47,63 @@ async function getLocalOllamaModelInfo(name) {
   return info;
 }
 
+function compareExtensionVersions(left, right) {
+  const parse = value => {
+    if (!/^\d+\.\d+\.\d+(?:\.\d+)?$/.test(value || "")) throw new Error("Versione non valida.");
+    return value.split(".").map(Number);
+  };
+  const a = parse(left), b = parse(right);
+  for (let i = 0; i < 4; i++) {
+    const difference = (a[i] || 0) - (b[i] || 0);
+    if (difference) return Math.sign(difference);
+  }
+  return 0;
+}
+
+async function getExtensionUpdateStatus(force = false) {
+  const key = "segretarioMmgLatestRelease";
+  const current = chrome.runtime.getManifest().version;
+  const now = Date.now();
+  let release = null;
+  try {
+    const saved = (await chrome.storage.local.get(key))[key];
+    const age = now - saved?.checkedAt;
+    if (!force && saved && typeof saved.setupAvailable === "boolean" && age >= 0 &&
+        age < (saved.setupAvailable ? 15 * 60 * 1000 : 30000)) {
+      compareExtensionVersions(saved.version, current);
+      release = saved;
+    }
+  } catch {}
+  if (!release) {
+    // Fixed public endpoint: never send patient data, page URLs or credentials.
+    const response = await fetch("https://api.github.com/repos/1702micky/segretariommg/releases/latest", {
+      method: "GET", credentials: "omit", referrerPolicy: "no-referrer", redirect: "error",
+      cache: "no-store", headers: { Accept: "application/vnd.github+json" },
+      signal: AbortSignal.timeout(10000)
+    });
+    if (!response.ok) throw new Error("Verifica GitHub non disponibile. Riprova piu tardi.");
+    const data = await response.json();
+    const version = String(data.tag_name || "").replace(/^v/, "");
+    compareExtensionVersions(version, current);
+    if (data.draft || data.prerelease || data.tag_name !== "v" + version) throw new Error("Release stabile non disponibile.");
+    release = { version, checkedAt: now, setupAvailable: Array.isArray(data.assets) && data.assets.some(
+      asset => asset.name === `SegretarioMMG-Setup-${version}.exe` && Number(asset.size) > 0) };
+    try { await chrome.storage.local.set({ [key]: release }); } catch {}
+  }
+  const comparison = compareExtensionVersions(current, release.version);
+  const state = comparison > 0 ? "ahead" : comparison === 0 ? "current" : release.setupAvailable ? "available" : "pending";
+  return { current, latest: release.version, checkedAt: release.checkedAt, state,
+    downloadUrl: state === "available"
+      ? `https://github.com/1702micky/segretariommg/releases/download/v${release.version}/SegretarioMMG-Setup-${release.version}.exe` : "" };
+}
+
 chrome.runtime.onMessage.addListener((message, sender, respond) => {
+  if (sender.id === chrome.runtime.id && message?.type === "SEGRETARIO_CHECK_UPDATE") {
+    getExtensionUpdateStatus(message.force === true)
+      .then(update => respond({ ok: true, update }))
+      .catch(() => respond({ ok: false, error: "Impossibile verificare gli aggiornamenti su GitHub. Controlla la connessione e riprova." }));
+    return true;
+  }
   if (sender.id !== chrome.runtime.id || !["OLLAMA_LIST_MODELS", "OLLAMA_MODEL_INFO"].includes(message?.type)) return;
   const task = message.type === "OLLAMA_LIST_MODELS"
     ? listLocalOllamaModels().then(models => ({ models }))

@@ -1,3 +1,10 @@
+Segretario MMG v0.16.15
+
+- Home: versione installata, confronto GitHub, data verifica e controllo manuale immediato.
+- Se disponibile, collegamento al nuovo setup; avvio manuale necessario.
+- Metadati aggiornamenti pubblici, senza invio di dati Eumed, URL paziente o referti.
+- Rimossa la dicitura installer pilota dai titoli delle release e dalle pubblicazioni future.
+
 Segretario MMG v0.16.14
 
 - Parser per tabella emocromo italiano/chimica clinica; conservazione del referto completo e misure secondarie.

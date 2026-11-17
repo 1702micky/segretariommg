@@ -1,14 +1,15 @@
 {
   "manifest_version": 3,
   "name": "Segretario MMG",
-  "version": "0.16.14",
+  "version": "0.16.15",
   "description": "Assistente locale per referti di laboratorio e prescrizione controllata di esami da lista.",
   "minimum_chrome_version": "114",
   "permissions": [
     "storage"
   ],
   "host_permissions": [
-    "http://127.0.0.1:11434/*"
+    "http://127.0.0.1:11434/*",
+    "https://api.github.com/*"
   ],
   "background": {
     "service_worker": "background.js"

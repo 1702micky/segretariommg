@@ -26,7 +26,7 @@ jobs:
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           node --check background.js
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          node --test tests/vaadin-regression.test.cjs tests/ollama-models.test.cjs tests/diagnostics.test.cjs
+          node --test tests/vaadin-regression.test.cjs tests/ollama-models.test.cjs tests/diagnostics.test.cjs tests/updates.test.cjs
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
       # Test PowerShell isolati: non installano o avviano Ollama.
       - name: Installer regression checks
