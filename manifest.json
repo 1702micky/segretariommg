@@ -1,0 +1,58 @@
+{
+  "manifest_version": 3,
+  "name": "Segretario MMG",
+  "version": "0.16.0",
+  "description": "Assistente locale per referti di laboratorio e prescrizione controllata di esami da lista.",
+  "minimum_chrome_version": "114",
+  "permissions": [
+    "storage"
+  ],
+  "host_permissions": [
+    "http://127.0.0.1:11434/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "Apri/chiudi Segretario MMG"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://medici.eumedweb.com/*"
+      ],
+      "js": [
+        "segretario.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "vendor/pdf.mjs",
+        "vendor/pdf.worker.mjs",
+        "lab_catalog.json",
+        "vendor/paddleocr/models/*",
+        "vendor/paddleocr/wasm/*",
+        "paddle_sandbox.html",
+        "paddle_sandbox.js",
+        "vendor/paddleocr/paddleocr.bundle.js",
+        "installation-defaults.json"
+      ],
+      "matches": [
+        "https://medici.eumedweb.com/*"
+      ]
+    }
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'",
+    "sandbox": "sandbox allow-scripts; script-src 'self' 'unsafe-eval' 'wasm-unsafe-eval'; object-src 'self'; connect-src 'self' chrome-extension: data: blob:; img-src 'self' data: blob:; worker-src 'self' blob:; child-src 'self' blob:"
+  },
+  "sandbox": {
+    "pages": [
+      "paddle_sandbox.html"
+    ]
+  },
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA7kkweADCNA2fgeSST8ZgC+HbfyyTzZekDPOq+jE2tKIR0B2yjYAQHmPLMIFj9Z0BgOaeGp/5A+gD2gtyDqpA/eujbFMkXDSg+pzglf0gb8svjoAkZPt+Z04Luo7hu06K1KSgJhju7CXr2N9zbaaZeOOZgTv3DJUQTVpKp9+vOKhG2KcmVVvgxAif23rZMbQyhiOEBSGHv8QlPc9fRGJk9U/+dnt3jgDtMwGKNMrZM8iy488nt5bVI7E6rZBqHNS55ThAc4HS0XjwEXovWXTyftMGpPW6QRuZ9S+IYJ9TyNj5lW0kqLbIj+NRdKfGD86Fa+zQ3F+hh1GGO2Mm2dEwrwIDAQAB"
+}

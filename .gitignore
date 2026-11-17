@@ -1,0 +1,8 @@
+work/
+outputs/
+vendor/
+__pycache__/
+*.log
+*.pdf
+*.xlsx
+sn*.txt
