@@ -112,19 +112,13 @@ try {
     $link=$shell.CreateShortcut((Join-Path ([Environment]::GetFolderPath('Desktop')) 'Aggiorna-Segretario.lnk'))
     $link.TargetPath='powershell.exe';$link.Arguments='-NoProfile -ExecutionPolicy Bypass -File "'+(Join-Path $runtime 'Update.ps1')+'"';$link.Save()
     $chrome=@("$env:ProgramFiles\Google\Chrome\Application\chrome.exe","${env:ProgramFiles(x86)}\Google\Chrome\Application\chrome.exe","$env:LOCALAPPDATA\Google\Chrome\Application\chrome.exe")|Where-Object{Test-Path $_}|Select-Object -First 1
-    if($chrome){
-        $extensionsLink=$shell.CreateShortcut((Join-Path ([Environment]::GetFolderPath('Desktop')) 'Apri estensioni Chrome.lnk'))
-        $extensionsLink.TargetPath=$chrome
-        $extensionsLink.Arguments='chrome://extensions'
-        $extensionsLink.Save()
-    }
     # Le istruzioni restano leggibili anche se Chrome blocca la navigazione automatica.
     [Windows.Forms.MessageBox]::Show((Get-Content $help -Raw),'Installazione verificata')|Out-Null
     if($chrome){
         try {
             Start-Process $chrome -ArgumentList @('chrome://extensions','https://github.com/1702micky/segretariommg') -WindowStyle Normal
         } catch {
-            Write-Warning 'Installazione verificata, ma Chrome non si e aperto. Usa il collegamento Apri estensioni Chrome sul desktop e consulta https://github.com/1702micky/segretariommg.'
+            Write-Warning 'Installazione verificata, ma Chrome non si e aperto. Digita chrome://extensions nella barra di Chrome e consulta https://github.com/1702micky/segretariommg.'
         }
     } else {
         Write-Warning 'Chrome non trovato. Apri la guida: https://github.com/1702micky/segretariommg'
