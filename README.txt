@@ -1,4 +1,4 @@
-Segretario MMG v0.16.4
+Segretario MMG v0.16.5
 
 - Setup: apre a fine installazione le estensioni Chrome e la home GitHub.
 - Collegamento desktop Apri estensioni Chrome.

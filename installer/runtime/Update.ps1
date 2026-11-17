@@ -1,5 +1,6 @@
 ﻿param([switch]$CheckOnly)
 $ErrorActionPreference='Stop'
+. (Join-Path $PSScriptRoot 'Download.Helpers.ps1')
 $Root='C:\AI\segretario-mmg-extension'
 $State=Join-Path $env:LOCALAPPDATA 'SegretarioMMG'
 New-Item -ItemType Directory -Force $State | Out-Null
@@ -25,7 +26,7 @@ try {
     $stage=Join-Path $State ([guid]::NewGuid().ToString())
     New-Item -ItemType Directory $stage | Out-Null
     $zip=Join-Path $stage 'update.zip'
-    Invoke-WebRequest $url.AbsoluteUri -UseBasicParsing -OutFile $zip -TimeoutSec 600
+    Receive-FileWithProgress -Uri $url -OutFile $zip -Activity ('Aggiornamento '+$next) -TimeoutSeconds 600
     if ((Get-FileHash $zip -Algorithm SHA256).Hash.ToLower() -ne ($asset[0].digest -replace '^sha256:','')) { throw 'Digest archivio errato' }
     Add-Type -AssemblyName System.IO.Compression.FileSystem
     $z=[IO.Compression.ZipFile]::OpenRead($zip)

@@ -1,6 +1,6 @@
-# Segretario MMG - setup pilota 0.16.4
+# Segretario MMG - setup pilota 0.16.5
 
-Il file SegretarioMMG-Setup-0.16.4.exe e un installer unico Windows x64 che richiede elevazione UAC. E una build pilota compilata e controllata, NON ancora collaudata con installazione completa su un Windows pulito. Non e firmata digitalmente.
+Il file SegretarioMMG-Setup-0.16.5.exe e un installer unico Windows x64 che richiede elevazione UAC. E una build pilota compilata e controllata, NON ancora collaudata con installazione completa su un Windows pulito. Non e firmata digitalmente.
 
 ## Cosa fa
 
@@ -58,3 +58,5 @@ SHA256 controlla integrita; la fonte di fiducia resta il repository GitHub HTTPS
 Non eseguiti: UAC/installazione reale, download Ollama/modelli, riavvio dei servizi, registrazione del task, installazione manuale Chrome, inferenza OCR reale, upgrade da una release GitHub pubblicata. Queste prove devono precedere la distribuzione ai colleghi.
 
 Log setup e aggiornamenti: %LOCALAPPDATA%\SegretarioMMG. Il fallimento del setup lascia i file e backup per diagnosi; non effettua una disinstallazione globale automatica. Per fermare l'avvio automatico disabilitare le attivita SegretarioMMG-Startup e SegretarioMMG-Update in Utilita di pianificazione. Non cancellare Ollama o modelli se usati da altri programmi.
+
+Download: MB ricevuti, totale e barra percentuale se la dimensione e comunicata dal server. Altrimenti vengono mostrati solo i MB ricevuti. Per ricevere questa nuova visualizzazione anche nel programma di aggiornamento, esegui il setup aggiornato.

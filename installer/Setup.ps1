@@ -1,6 +1,7 @@
 ﻿param([Parameter(Mandatory=$true)][string]$PackageRoot)
 $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'Setup.Helpers.ps1')
+. (Join-Path $PSScriptRoot 'runtime/Download.Helpers.ps1')
 Add-Type -AssemblyName System.Windows.Forms
 $Root='C:\AI\segretario-mmg-extension'
 $identity=[Security.Principal.WindowsIdentity]::GetCurrent()
@@ -59,7 +60,7 @@ try {
     if(-not (Test-Path $exe)){
         $download=Join-Path $State 'OllamaSetup.exe'
         Write-Host 'Download di Ollama dal sito ufficiale...'
-        Invoke-WebRequest 'https://ollama.com/download/OllamaSetup.exe' -UseBasicParsing -OutFile $download -TimeoutSec 7200
+        Receive-FileWithProgress -Uri 'https://ollama.com/download/OllamaSetup.exe' -OutFile $download -Activity 'Download Ollama' -TimeoutSeconds 7200
         $signature=Get-AuthenticodeSignature $download
         if($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notmatch 'Ollama'){throw 'Firma del programma Ollama non valida: installazione fermata.'}
         Write-Host 'Installazione Ollama. Attendere: Chrome deve restare chiuso.'

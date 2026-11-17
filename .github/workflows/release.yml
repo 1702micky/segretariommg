@@ -31,7 +31,11 @@ jobs:
       # Test PowerShell isolati: non installano o avviano Ollama.
       - name: Installer regression checks
         shell: powershell
-        run: .\tests\installer-wait.test.ps1
+        run: |
+          & .\tests\installer-wait.test.ps1
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          python tests/download-progress.test.py
+          exit $LASTEXITCODE
       - name: Prepare PDF runtime
         shell: pwsh
         run: |
