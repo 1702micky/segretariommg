@@ -1,6 +1,6 @@
-# Segretario MMG - setup pilota 0.16.11
+# Segretario MMG - setup pilota 0.16.12
 
-Il file SegretarioMMG-Setup-0.16.11.exe e un installer unico Windows x64 che richiede elevazione UAC. E una build pilota compilata e controllata, NON ancora collaudata con installazione completa su un Windows pulito. Non e firmata digitalmente.
+Il file SegretarioMMG-Setup-0.16.12.exe e un installer unico Windows x64 che richiede elevazione UAC. E una build pilota compilata e controllata, NON ancora collaudata con installazione completa su un Windows pulito. Non e firmata digitalmente.
 
 ## Cosa fa
 
@@ -71,7 +71,7 @@ Log setup e aggiornamenti: %LOCALAPPDATA%\SegretarioMMG. Il fallimento del setup
 
 Download: MB ricevuti, totale e barra percentuale se la dimensione e comunicata dal server. Altrimenti vengono mostrati solo i MB ricevuti. Per ricevere questa nuova visualizzazione anche nel programma di aggiornamento, esegui il setup aggiornato.
 
-## Interfaccia installer 0.16.11
+## Interfaccia installer 0.16.12
 
 Finestra grafica separata dal processo di lavoro: fase, tempo trascorso, indicatore animato e barra riferita al singolo download. Ollama e modello mostrano MB e totale quando disponibile; nelle attese la barra e animata. L'animazione indica che l'interfaccia e reattiva, non garantisce che un server remoto stia avanzando.
 

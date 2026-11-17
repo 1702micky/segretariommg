@@ -19,15 +19,18 @@ function load(names, globals = {}, existingContext = null) {
   return context;
 }
 const item = () => ({ catalogCode: '90.56.3_2', exam: 'ANTIGENE CARCINOEMBRIONARIO CEA' });
-const row = (text, index = '1') => ({ textContent: text, getAttribute: () => index });
+const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
+const headers = [{textContent:'Accertamento',cellIndex:0,getAttribute:()=>null}, {textContent:'Data presc.',cellIndex:1,getAttribute:()=>null}, {textContent:'Data esito',cellIndex:2,getAttribute:()=>null}];
+const row = (text, index = '1', prescriptionDate = today(), resultDate = '') => ({ textContent: text, getAttribute: () => index,
+  querySelectorAll: () => [text, prescriptionDate, resultDate].map(textContent => ({textContent,getAttribute:()=>null})) });
 function gridContext() {
   const state = { total: '10', rows: [] };
   const grid = {
     querySelector: () => ({ getAttribute: () => state.total }),
-    querySelectorAll: () => state.rows,
+    querySelectorAll: selector => selector.includes('thead') ? headers : state.rows,
   };
   const context = load(['normalizeExamName', 'prescriptionRowText', 'normalizePrescriptionRowText', 'getPrescriptionListRowCount',
-    'prescriptionRowMatchesItem', 'getPrescriptionRowEvidence',
+    'prescriptionRowMatchesItem', 'isValidCalendarDateParts', 'normalizeDateValue', 'prescriptionListRowDate', 'getPrescriptionRowEvidence',
     'getPrescriptionWriteSnapshot', 'findNewPrescriptionRow', 'waitForPrescriptionRowAdded',
     'writePrescriptionListItem'], { getPrescriptionListGrid: () => grid });
   return { state, context };
@@ -99,7 +102,61 @@ test('a previously visible exam blocks automatic insertion', async () => {
   const { state, context } = gridContext(); state.rows = [row('90.56.3_2 CEA')];
   const result = await context.writePrescriptionListItem(item());
   assert.equal(result.success, false);
-  assert.match(result.field, /già visibile/);
+  assert.match(result.field, /gia visibile.*odierna/);
+});
+
+test('old prescriptions do not block today even when their result date is today', async () => {
+  const { state, context } = gridContext();
+  state.rows = [row('90.56.3_2 CEA', '1', '01/01/2001', today())];
+  let attempts = 0;
+  context.writePrescriptionListItemAttempt = async () => { attempts++; return {success:true}; };
+  assert.equal((await context.writePrescriptionListItem(item())).success, true);
+  assert.equal(attempts, 1);
+  const snapshot = context.getPrescriptionWriteSnapshot(item());
+  assert.equal(snapshot.todayMatches, 0); assert.equal(snapshot.unknownDateMatches, 0);
+});
+
+test('today prescriptions block even when their result date is old', async () => {
+  const { state, context } = gridContext();
+  state.rows = [row('90.56.3_2 CEA', '1', today(), '01/01/2001')];
+  assert.match((await context.writePrescriptionListItem(item())).field, /odierna/);
+});
+
+test('unknown prescription date is reported as unreadable rather than as a duplicate today', async () => {
+  const { state, context } = gridContext();
+  state.rows = [row('90.56.3_2 CEA', '1', '', today())];
+  const result = await context.writePrescriptionListItem(item());
+  assert.equal(result.success, false); assert.match(result.field, /Data presc. non leggibile/);
+});
+
+test('old matching rows cannot confirm an unrelated new row when their virtual index changes', () => {
+  const { state, context } = gridContext();
+  state.rows = [row('90.56.3_2 CEA', '1', '01/01/2001')];
+  const before = context.getPrescriptionWriteSnapshot(item());
+  state.total = '11';state.rows = [row('90.56.3_2 CEA', '2', '01/01/2001')];
+  assert.equal(context.findNewPrescriptionRow(before, item()), null);
+  state.rows.push(row('90.56.3_2 CEA', '1', today()));
+  assert.ok(context.findNewPrescriptionRow(before, item()));
+});
+
+test('prescription date follows the named header and aria column, never another date', () => {
+  const {context} = gridContext();
+  const grid = {querySelectorAll:()=>[
+    {textContent:'Data esito',getAttribute:()=> '1'},
+    {textContent:'Data presc.',getAttribute:()=> '3'},
+  ]};
+  const testRow={querySelectorAll:()=>[
+    {textContent:today(),getAttribute:()=> '1'},
+    {textContent:'01/02/2001',getAttribute:()=> '3'},
+  ]};
+  assert.equal(context.prescriptionListRowDate(testRow,grid),'2001-02-01');
+  const unknownGrid={querySelectorAll:()=>[{textContent:'Data esito',getAttribute:()=> '1'}]};
+  assert.equal(context.prescriptionListRowDate(testRow,unknownGrid),'');
+});
+
+test('calendar-invalid dates are never interpreted as an old prescription', () => {
+  const {context} = gridContext();
+  assert.equal(context.prescriptionListRowDate(row('CEA','1','31/02/2001'),{querySelectorAll:()=>headers}),'');
 });
 
 test('pending confirmation blocks manual retry until the actual new row is verified', async () => {
@@ -132,12 +189,12 @@ test('real writer retains pending state after a click and never clicks again on 
   const state = { total: '10', rows: [] };
   const form = { accertamento: {}, exemption: {}, priority: { value: '' }, confirm: {} };
   const context = load(['normalizeExamName', 'prescriptionRowText', 'normalizePrescriptionRowText', 'getPrescriptionListRowCount',
-    'prescriptionRowMatchesItem', 'getPrescriptionRowEvidence', 'getPrescriptionWriteSnapshot',
+    'prescriptionRowMatchesItem', 'isValidCalendarDateParts', 'normalizeDateValue', 'prescriptionListRowDate', 'getPrescriptionRowEvidence', 'getPrescriptionWriteSnapshot',
     'findNewPrescriptionRow', 'waitForPrescriptionRowAdded',
     'waitForPrescriptionListForm', 'writePrescriptionListItemAttempt', 'writePrescriptionListItem'], {
     getPrescriptionListGrid: () => ({
       querySelector: () => ({ getAttribute: () => state.total }),
-      querySelectorAll: () => state.rows,
+      querySelectorAll: selector => selector.includes('thead') ? headers : state.rows,
     }),
     getPrescriptionListForm: () => form,
     choosePrescriptionCatalogEntry: async () => true,
@@ -245,7 +302,7 @@ function selectionContext({ multiple = false, tabCommits = true, optionsVisible 
   const form = { accertamento: input, exemption: { focus() {} } };
   const context = load(['normalizeExamName', 'significantTokens', 'filterSelectCandidateScore',
     'prescriptionRowText', 'normalizePrescriptionRowText', 'prescriptionRowMatchesItem',
-    'readPrescriptionCatalogSelection', 'waitPrescriptionCatalogSelection', 'choosePrescriptionCatalogTarget'], {
+    'sanitizeCreationCatalogAlias', 'prescriptionCatalogOptionEvidence', 'readPrescriptionCatalogSelection', 'waitPrescriptionCatalogSelection', 'choosePrescriptionCatalogTarget'], {
     triggerNonPrescribedCatalogFilter: async () => { state.queries++; return true; },
     getPrescriptionCatalogOptions: () => state.popupVisible ? (multiple ? [
       { textContent: '90.27.1_3 -- GLUCOSIO [U] 24H' }, option,
@@ -579,6 +636,40 @@ test('duplicate exact proposals do not pick an arbitrary menu item', async () =>
   context.getPrescriptionCatalogOptions = () => [option, {textContent: option.textContent}];
   assert.equal((await context.choosePrescriptionCatalogTarget(input, target.catalogCode, target)).success, false);
   assert.equal(state.clicks, 0); assert.equal(state.tabs, 0);
+});
+
+test('a code-filtered caption without a displayed code is selected on the first query', async () => {
+  const {context,state,input,target,option} = selectionContext();
+  option.textContent = 'GLUCOSIO [S]';
+  assert.equal((await context.choosePrescriptionCatalogTarget(input,target.catalogCode,target)).success,true);
+  assert.equal(state.queries,1);assert.equal(state.clicks,1);
+  assert.ok(state.events.some(e=>e.step===2 && e.codeAbsentCount===1));
+});
+
+test('the exact caption wins over a partial name without selecting another displayed code', async () => {
+  const {context,state,input,target,option} = selectionContext();
+  option.textContent = 'GLUCOSIO [S]';
+  const partial={textContent:'GLUCOSIO [S] dopo stimolo'};
+  const conflict={textContent:'90.27.1_3 -- GLUCOSIO [S]'};
+  context.getPrescriptionCatalogOptions=()=>state.popupVisible?[partial,option,conflict]:[];
+  assert.equal((await context.choosePrescriptionCatalogTarget(input,target.catalogCode,target)).success,true);
+  assert.equal(state.clicks,1);
+  assert.ok(state.events.some(e=>e.step===2 && e.codeConflictCount===1 && e.matchingOptions===1));
+});
+
+test('a conflicting displayed code is rejected even if the caption matches', async () => {
+  const {context,state,input,target,option} = selectionContext();
+  option.textContent='90.27.1_3 -- GLUCOSIO [S]';
+  assert.equal((await context.choosePrescriptionCatalogTarget(input,target.catalogCode,target)).success,false);
+  assert.equal(state.clicks,0);
+});
+
+test('a caption shortened by Eumed is recognized after clicking the verified exact code', async () => {
+  const {context,state,input,target,option} = selectionContext();
+  option.textContent='90.27.1_2 -- GLUCOSIO';
+  context.dispatchVaadinMouseSequence=()=>{state.clicks++;input.value='GLUCOSIO';state.popupVisible=false;};
+  assert.equal((await context.choosePrescriptionCatalogTarget(input,target.catalogCode,target)).success,true);
+  assert.equal(state.queries,1);
 });
 
 test('prescription options ignore mounted offscreen popup entries', () => {

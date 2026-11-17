@@ -3,7 +3,7 @@
 
   // ============================================================
   // SEGRETARIO MMG
-  // Versione 0.16.11
+  // Versione 0.16.12
   //
   // - Estrazione con Qwen 3.5 4B locale
   // - Comunicazione diretta Ollama via service worker Chrome
@@ -10505,11 +10505,11 @@ ${sourceText}
 
     // Creatinina urinaria: il catalogo distingue 24h e voce per calcolo ACR.
     // Se il referto dice solo "U-creatinina" non inventiamo quale delle due.
-    if (n.includes("CREATININA") && /ACR|ALBUMIN.?CREAT/.test(n)) return exact("90.16.11_7");
+    if (n.includes("CREATININA") && /ACR|ALBUMIN.?CREAT/.test(n)) return exact("90.16.12_7");
     if (concept === "CREATININE_URINE" || (concept === "CREATININE" && detectSpecimen(query) === "URINE")) {
-      if (/24 ?H|24 ORE|GIORNALIER/.test(n)) return exact("90.16.11_3");
-      if (/ACR|ALBUMIN.?CREAT|RAPPORTO/.test(n)) return exact("90.16.11_7");
-      if (context?.urineCreatinineForAcr && !/MINZ|DROGHE|PERITONE|DIALISI/.test(n)) return exact("90.16.11_7");
+      if (/24 ?H|24 ORE|GIORNALIER/.test(n)) return exact("90.16.12_3");
+      if (/ACR|ALBUMIN.?CREAT|RAPPORTO/.test(n)) return exact("90.16.12_7");
+      if (context?.urineCreatinineForAcr && !/MINZ|DROGHE|PERITONE|DIALISI/.test(n)) return exact("90.16.12_7");
       return { blocked: true, reason: "Creatinina urinaria senza tipologia prescrivibile univoca" };
     }
 
@@ -13514,15 +13514,39 @@ Output JSON compatto:
     const rows = grid ? [...grid.querySelectorAll("tbody.v-treegrid-body > tr, [role='rowgroup'] > [role='row']")] : [];
     return rows.filter(row => prescriptionRowMatchesItem(row, item)).map(row => ({
       row,
+      prescriptionDate: prescriptionListRowDate(row, grid),
       key: `${row.getAttribute("aria-rowindex") || ""}|${normalizePrescriptionRowText(prescriptionRowText(row))}`
     }));
   }
 
   function getPrescriptionWriteSnapshot(item) {
+    const evidence = getPrescriptionRowEvidence(item);
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
     return {
       total: getPrescriptionListRowCount(),
-      matches: getPrescriptionRowEvidence(item).map(evidence => evidence.key)
+      matches: evidence.map(entry => entry.key),
+      todayMatches: evidence.filter(entry => entry.prescriptionDate === today).length,
+      unknownDateMatches: evidence.filter(entry => !entry.prescriptionDate).length,
+      today
     };
+  }
+
+  function prescriptionListRowDate(row, grid) {
+    const headers = [...grid.querySelectorAll("thead th, [role='columnheader']")];
+    const dateHeaders = headers.filter(header => /^DATA PRESC(?:RIZ(?:IONE)?)?$/.test(normalizeExamName(header.textContent || "")));
+    if (dateHeaders.length !== 1) return "";
+    const header = dateHeaders[0];
+    const ariaIndex = Number.parseInt(header.getAttribute("aria-colindex") || "", 10);
+    const cells = [...row.querySelectorAll("td[role='gridcell'], td.v-treegrid-cell, [role='gridcell']")];
+    let cell = Number.isFinite(ariaIndex)
+      ? cells.find(candidate => Number.parseInt(candidate.getAttribute("aria-colindex") || "", 10) === ariaIndex)
+      : cells[Number.isInteger(header.cellIndex) ? header.cellIndex : headers.indexOf(header)];
+    if (!cell && !cells.some(candidate => candidate.getAttribute("aria-colindex"))) {
+      cell = cells[Number.isInteger(header.cellIndex) ? header.cellIndex : ariaIndex - 1];
+    }
+    // Never infer the prescription date from another date elsewhere in the row.
+    return normalizeDateValue(cell?.textContent || "");
   }
 
   function findNewPrescriptionRow(before, item) {
@@ -13532,6 +13556,7 @@ Output JSON compatto:
     // Confrontiamo evidenze, non nodi DOM: Vaadin puo' riciclare gli stessi nodi.
     const remaining = [...before.matches];
     for (const evidence of getPrescriptionRowEvidence(item)) {
+      if (evidence.prescriptionDate !== before.today) continue;
       const index = remaining.indexOf(evidence.key);
       if (index < 0) return evidence.row;
       remaining.splice(index, 1);
@@ -13573,14 +13598,32 @@ Output JSON compatto:
     return [...new Set([...document.querySelectorAll(
       ".v-filterselect-suggestpopup .gwt-MenuItem, .gwt-SuggestBoxPopup .gwt-MenuItem, " +
       ".v-filterselect-suggestmenu .gwt-MenuItem, [role='option']"
-    )])].filter(isActuallyVisibleInViewport);
+    )].map(node => node.closest?.(".gwt-MenuItem") || node))].filter(isActuallyVisibleInViewport);
+  }
+
+  function prescriptionCatalogOptionEvidence(option, item) {
+    const text = String(option?.textContent || "").trim();
+    const codes = text.toUpperCase().match(/\b(?:\d{2}\.\d{2}\.[A-Z0-9]+|G\d\.\d+)(?:_[A-Z0-9]+)?\b/g) || [];
+    const codeExact = codes.includes(String(item.catalogCode || item.catalogEntry?.code || "").toUpperCase());
+    const codeConflict = codes.length > 0 && !codeExact;
+    const caption = normalizePrescriptionRowText(text.replace(/\b(?:\d{2}\.\d{2}\.[A-Z0-9]+|G\d\.\d+)(?:_[A-Z0-9]+)?\b/gi, ""));
+    const names = [item.catalogEntry?.name, item.exam, ...(item.catalogEntry?.aliases || [])]
+      .filter(Boolean).map(sanitizeCreationCatalogAlias).filter(Boolean);
+    const exactCaption = names.some(name => normalizePrescriptionRowText(name) === caption);
+    const captionMatched = exactCaption || prescriptionRowMatchesItem(option, { ...item, catalogCode: "" });
+    const nameScore = captionMatched ? Math.max(0, ...names.map(name => filterSelectCandidateScore(text, name))) : 0;
+    const score = codeConflict ? 0 : codeExact ? 12000 : exactCaption ? 11000 : nameScore;
+    return { score, codeExact, codeConflict, codeAbsent: codes.length === 0, captionMatched, exactCaption };
   }
 
   function readPrescriptionCatalogSelection(item, popup) {
     const field = getPrescriptionListForm()?.accertamento;
     const value = String(field?.value || "").trim();
     const fieldIsCode = !!value && value.toUpperCase() === String(item?.catalogCode || "").toUpperCase();
-    const fieldMatched = !!value && !fieldIsCode && prescriptionRowMatchesItem({ textContent: value }, item);
+    const fieldMatched = Boolean(value && !fieldIsCode && (
+      prescriptionRowMatchesItem({ textContent: value }, item) ||
+      (item._prescriptionSelectedCaption && normalizePrescriptionRowText(value) === item._prescriptionSelectedCaption)
+    ));
     const popupVisible = !!popup && isActuallyVisibleInViewport(popup);
     return { fieldPresent: !!field, fieldIsCode, fieldMatched, popupVisible,
       success: fieldMatched && !popupVisible };
@@ -13598,6 +13641,7 @@ Output JSON compatto:
   }
 
   async function choosePrescriptionCatalogTarget(input, target, item) {
+    delete item._prescriptionSelectedCaption;
     const started = Date.now();
     const queryIndex = item._diagnosticQuery = (item._diagnosticQuery || 0) + 1;
     const trace = (step, state = {}) => {
@@ -13614,10 +13658,14 @@ Output JSON compatto:
     }
     const findOption = () => {
       const visible = getPrescriptionCatalogOptions();
-      const ranked = visible.filter(candidate =>
-        filterSelectCandidateScore(candidate.textContent, target) >= 7000 &&
-        prescriptionRowMatchesItem(candidate, item));
-      return { visible, ranked };
+      const evidence = visible.map(candidate => ({ candidate, ...prescriptionCatalogOptionEvidence(candidate, item) }));
+      const bestScore = Math.max(0, ...evidence.map(entry => entry.score));
+      const ranked = bestScore >= 7000 ? evidence.filter(entry => entry.score === bestScore).map(entry => entry.candidate) : [];
+      return { visible, ranked, bestScore,
+        codeMatchesCount: evidence.filter(entry => entry.codeExact).length,
+        captionMatchesCount: evidence.filter(entry => entry.captionMatched).length,
+        codeAbsentCount: evidence.filter(entry => entry.codeAbsent).length,
+        codeConflictCount: evidence.filter(entry => entry.codeConflict).length };
     };
     let found = { visible: [], ranked: [] };
     for (let elapsed = 0; elapsed < 2000; elapsed += 80) {
@@ -13630,9 +13678,14 @@ Output JSON compatto:
       }
       await sleep(80);
     }
-    trace(2, { optionsCount: found.visible.length, matchingOptions: found.ranked.length });
+    trace(2, { optionsCount: found.visible.length, matchingOptions: found.ranked.length,
+      bestScore: found.bestScore, codeMatchesCount: found.codeMatchesCount,
+      captionMatchesCount: found.captionMatchesCount, codeAbsentCount: found.codeAbsentCount,
+      codeConflictCount: found.codeConflictCount });
     if (found.ranked.length !== 1) return { success: false, exactOptionFound: found.ranked.length > 0 };
     let option = found.ranked[0];
+    item._prescriptionSelectedCaption = normalizePrescriptionRowText(String(option.textContent || "")
+      .replace(/\b(?:\d{2}\.\d{2}\.[A-Z0-9]+|G\d\.\d+)(?:_[A-Z0-9]+)?\b/gi, ""));
     let popup = getFilterSelectPopup(option);
     // Click before blur: a synthetic Tab alone can dismiss the menu without
     // committing its highlighted item, leaving no visible item for a fallback.
@@ -13752,11 +13805,18 @@ Output JSON compatto:
       return { success: false, item, field: "Conferma precedente ancora da verificare: nessun reinvio. Controlla la tabella Eumed.", confirmationSent: true };
     }
     const before = getPrescriptionWriteSnapshot(item);
+    if (typeof recordDiagnosticEvent === "function") recordDiagnosticEvent("prescrizione_duplicati", {
+      rowIndex: item._diagnosticRow || 0, matchingRows: before.matches.length,
+      todayMatches: before.todayMatches, unknownDateMatches: before.unknownDateMatches
+    });
     if (!Number.isFinite(before.total)) {
       return { success: false, item, field: "Totale TreeGrid non disponibile: inserimento sospeso per evitare duplicati" };
     }
-    if (before.matches.length) {
-      return { success: false, item, field: "Esame già visibile nella tabella: verifica la riga esistente prima di inserire nuovamente" };
+    if (before.todayMatches) {
+      return { success: false, item, field: "Esame gia visibile nella tabella con Data presc. odierna: verifica la riga esistente prima di inserire nuovamente" };
+    }
+    if (before.unknownDateMatches) {
+      return { success: false, item, field: "Data presc. non leggibile per una riga corrispondente: verifica la colonna prima di procedere. La riga non e stata considerata una prescrizione odierna." };
     }
     const maxAttempts = 4;
     let last = null;
@@ -14244,9 +14304,9 @@ button:disabled {
   const diagnosticSessionStarted = Date.now();
 
   function recordDiagnosticEvent(kind, data = {}) {
-    const allowedKinds = ["operazione_avviata", "operazione_terminata", "ia_completata", "ia_errore", "catalogo_selezione", "prescrizione_tentativo", "prescrizione_conferma", "prescrizione_riga"];
+    const allowedKinds = ["operazione_avviata", "operazione_terminata", "ia_completata", "ia_errore", "catalogo_selezione", "prescrizione_tentativo", "prescrizione_conferma", "prescrizione_riga", "prescrizione_duplicati"];
     if (!allowedKinds.includes(kind)) return;
-    const allowedKeys = ["durationMs", "inputCharacters", "outputCharacters", "images", "numeric", "complex", "uncertain", "requested", "completed", "retries", "retriedRows", "catalogSelectionMs", "interrupted", "error", "rowIndex", "attempt", "queryIndex", "targetIsCode", "step", "optionsCount", "matchingOptions", "fieldPresent", "fieldIsCode", "fieldMatched", "popupVisible", "success", "confirmationSent", "pageHidden"];
+    const allowedKeys = ["durationMs", "inputCharacters", "outputCharacters", "images", "numeric", "complex", "uncertain", "requested", "completed", "retries", "retriedRows", "catalogSelectionMs", "interrupted", "error", "rowIndex", "attempt", "queryIndex", "targetIsCode", "step", "optionsCount", "matchingOptions", "bestScore", "codeMatchesCount", "captionMatchesCount", "codeAbsentCount", "codeConflictCount", "matchingRows", "todayMatches", "unknownDateMatches", "fieldPresent", "fieldIsCode", "fieldMatched", "popupVisible", "success", "confirmationSent", "pageHidden"];
     const safe = {};
     for (const key of allowedKeys) {
       const value = data[key];
@@ -14284,6 +14344,8 @@ button:disabled {
       "Diagnostica prescrizione: rowIndex = numero progressivo anonimo; attempt = tentativo; queryIndex = ricerca nello stesso tentativo; targetIsCode = ricerca per codice; pageHidden = scheda in background.",
       "catalogo_selezione step: 1 filtro non avviato; 2 proposte disponibili; 3 verifica dopo click; 4 verifica dopo Tab; 5 verifica dopo ricostruzione menu. fieldMatched = testo del campo corrispondente; fieldIsCode = solo codice digitato; popupVisible = menu ancora visibile. Questi stati non provano la creazione della riga.",
       "prescrizione_conferma = conferma locale inviata; prescrizione_riga success = nuova riga verificata. Nomi esami, codici e contenuto dei campi non sono inclusi.",
+      "Selezione: codeMatchesCount = codici coincidenti; codeAbsentCount = proposte senza codice visibile; codeConflictCount = codici diversi; captionMatchesCount = nomi compatibili; bestScore = punteggio migliore. matchingOptions conta le sole proposte a pari punteggio migliore.",
+      "prescrizione_duplicati: matchingRows = righe corrispondenti; todayMatches = Data presc. odierna; unknownDateMatches = Data presc. non leggibile. Le date effettive non sono incluse.",
       "Per assistenza: incollare separatamente nomi esami, valori, unita e intervalli, dopo anonimizzazione. Non allegare documenti identificabili.",
       "", JSON.stringify(events, null, 2)].join("\n");
   }

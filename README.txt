@@ -1,3 +1,9 @@
+Segretario MMG v0.16.12
+
+- Prescrizione: duplicato solo con Data presc. odierna; una vecchia prescrizione non blocca. Date illeggibili segnalate separatamente.
+- Selezione per codice anche con solo nome visibile; preferenza alla corrispondenza esatta e rifiuto dei codici diversi.
+- Diagnostica ampliata con motivi di esclusione e conteggi del controllo duplicati, senza date o contenuti clinici.
+
 Segretario MMG v0.16.11
 
 - Prescrizione da lista: click sulla proposta esatta prima del Tab, attesa dello stato acquisito, recupero del menu ricostruito nella stessa ricerca.
