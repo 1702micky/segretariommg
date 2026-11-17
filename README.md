@@ -1,19 +1,138 @@
-# Segretario MMG
+<p align="center">
+  <img src="docs/images/segretario-mmg.svg" alt="Segretario MMG — Referti e prescrizioni, con meno passaggi" width="100%">
+</p>
 
-Assistente locale per referti e liste di esami nel gestionale Eumed, su Windows e Chrome.
+<p align="center">
+  Un assistente per i medici che usano <strong>Eumed</strong>.<br>
+  Legge referti e liste di esami e ti aiuta a compilare il gestionale, sotto il tuo controllo.
+</p>
 
-## Download
+<p align="center">
+  <a href="https://github.com/1702micky/segretariommg/releases/download/v0.16.0/SegretarioMMG-Setup-0.16.0.exe"><strong>↓ Scarica per Windows</strong></a>
+  &nbsp; · &nbsp;
+  <a href="#inizia-in-quattro-passaggi">Come si installa</a>
+  &nbsp; · &nbsp;
+  <a href="#domande-frequenti">Domande frequenti</a>
+</p>
 
-Scaricare installer e istruzioni dalla [release 0.16.0](https://github.com/1702micky/segretariommg/releases/tag/v0.16.0).
+<p align="center">Windows 64 bit · Google Chrome · IA sul tuo computer</p>
 
-Build pilota non firmata: collaudare su un Windows di prova prima della distribuzione generale. Chiudere Chrome prima del setup. Estensione caricata manualmente in modalita sviluppatore.
+> **Versione pilota 0.16.0.** Prima dell’uso abituale, prova il programma e controlla i risultati in Eumed. Il programma di installazione non è ancora firmato digitalmente.
 
-## Sviluppo e distribuzione
+## Cosa puoi fare
 
-- `node --test tests/vaadin-regression.test.cjs tests/ollama-models.test.cjs`
-- `python tools/build_installer.py` su Windows con runtime PDF/OCR in vendor.
-- Il workflow release prepara le dipendenze, esegue i test, compila il setup e pubblica la versione indicata da manifest.json. Non sovrascrive release esistenti.
-- Per una nuova release incrementare manifest.version conservando manifest.key.
-- Guida: installer/LEGGIMI-INSTALLER.md.
+| Se vuoi… | Scegli questa modalità |
+|---|---|
+| Inserire i risultati di esami già presenti nel gestionale | **Referto già prescritto** — compila le righe esistenti. |
+| Registrare un referto senza una prescrizione pregressa | **Referto non prescritto** — crea le righe per gli esami riconosciuti. |
+| Preparare una prescrizione da un elenco | **Prescrivi esami da lista** — legge testo, PDF e foto, anche con X e spunte. |
 
-L'IA usa Ollama locale con think:false. Nessun referto o dato personale deve essere inserito nel repository.
+Puoi incollare il testo o caricare un **PDF, un JPEG o un PNG**. Gli esami vengono confrontati con il catalogo di laboratorio; le voci non associate con certezza vengono segnalate per la verifica.
+
+## Uno sguardo al programma
+
+![Anteprima illustrativa della schermata iniziale: scelta del modello IA e delle tre modalità](docs/images/schermata-iniziale.svg)
+
+*Anteprima illustrativa ricostruita dai testi dell’interfaccia attuale. Non contiene dati di pazienti e non è uno screenshot della pagina Eumed.*
+
+### Dal documento al gestionale
+
+**1. Scegli l’attività** → **2. Carica o incolla il documento** → **3. Analizza e verifica** → **4. Inserisci in Eumed**
+
+Gli esami semplici possono essere inseriti come valori numerici; quelli composti, come emocromo e urine, vengono gestiti come referti estesi. Per i documenti difficili puoi usare la lettura con IA.
+
+**Controlla sempre l’anteprima, le voci segnalate e il risultato finale.** Durante l’inserimento tieni Eumed in primo piano e non lavorare contemporaneamente sugli stessi campi.
+
+## Inizia in quattro passaggi
+
+### 1 · Scarica e avvia il setup
+
+[**Scarica Segretario MMG per Windows**](https://github.com/1702micky/segretariommg/releases/download/v0.16.0/SegretarioMMG-Setup-0.16.0.exe)
+
+Chiudi completamente Chrome e gli eventuali lavori IA in corso. Avvia il file e autorizza la richiesta di Windows. Usa lo stesso account amministratore con cui lavori in Chrome.
+
+Il programma viene installato in **`C:\AI\segretario-mmg-extension`**: mantieni questa cartella nello stesso posto.
+
+### 2 · Scegli il modello IA
+
+Il setup mostra la RAM disponibile e propone un modello. Puoi cambiare la scelta:
+
+| Computer | Modello proposto |
+|---|---|
+| Meno di circa 12 GB di RAM | **Qwen3-VL 2B**, più leggero |
+| Da circa 12 GB di RAM | **Qwen3.5 4B**, il modello di riferimento del progetto |
+
+La RAM è un’indicazione, non una garanzia di velocità. Servono Internet per i download e almeno **12 GB liberi su C:**. Il setup prepara Ollama, PDF e OCR e verifica i componenti; non devi installare Node o Python.
+
+### 3 · Aggiungi l’estensione a Chrome
+
+Al termine del setup segui queste istruzioni, necessarie **solo la prima volta**:
+
+1. Digita **`chrome://extensions`** nella barra degli indirizzi di Chrome.
+2. Attiva **Modalità sviluppatore**.
+3. Premi **Carica estensione non pacchettizzata**.
+4. Seleziona **`C:\AI\segretario-mmg-extension`**.
+
+Se avevi una vecchia copia di Segretario MMG, disattivala prima di aggiungere questa: non lasciare due copie attive.
+
+### 4 · Apri Eumed
+
+Apri la sezione in cui vuoi lavorare, premi il pulsante **MMG** e scegli l’attività. Nella schermata iniziale trovi anche il modello IA: puoi selezionare un altro modello già installato o premere **Aggiorna elenco**.
+
+Per la prima prova usa una breve lista di esami e controlla l’anteprima prima di inserire i dati.
+
+## Gli aggiornamenti
+
+Se lasci attiva l’opzione del setup, il programma cerca nuove versioni all’accesso Windows e ogni ora. Gli aggiornamenti dell’estensione vengono applicati **soltanto quando Chrome è completamente chiuso**; altrimenti vengono rimandati.
+
+Alla riapertura Chrome carica la versione aggiornata. Non devi scaricare manualmente lo ZIP di aggiornamento. Per controllare subito puoi usare il collegamento **Aggiorna-Segretario** creato sul desktop, dopo aver chiuso Chrome.
+
+L’aggiornamento automatico riguarda l’estensione. Modelli IA, Ollama e programma di installazione hanno una gestione separata.
+
+## Domande frequenti
+
+<details>
+<summary><strong>I referti vengono inviati a un servizio IA online?</strong></summary>
+
+L’analisi IA usa Ollama e i modelli locali sul computer. L’estensione esclude i riferimenti ai modelli cloud. Il download dei componenti e il controllo degli aggiornamenti richiedono Internet; Eumed mantiene il proprio normale funzionamento online.
+
+</details>
+
+<details>
+<summary><strong>Devo pagare o avere un account sviluppatore Chrome?</strong></summary>
+
+Il pacchetto qui distribuito non richiede un account sviluppatore Chrome. L’estensione viene aggiunta manualmente dalla cartella locale, con la modalità sviluppatore attiva.
+
+</details>
+
+<details>
+<summary><strong>Posso usare un’altra IA?</strong></summary>
+
+Sì. Il selettore mostra i modelli locali presenti in Ollama e ricorda la scelta nel profilo Chrome. Per leggere foto e liste con spunte serve un modello che supporti anche le immagini. I modelli alternativi vanno provati: possono dare risultati e tempi diversi. Il ragionamento esteso è disattivato nelle richieste.
+
+</details>
+
+<details>
+<summary><strong>Il pannello dice che Ollama non risponde.</strong></summary>
+
+Avvia Ollama sul computer, poi premi **Aggiorna elenco** nella schermata iniziale. Se il problema continua, consulta il log del setup in `%LOCALAPPDATA%\SegretarioMMG`.
+
+</details>
+
+<details>
+<summary><strong>Un esame è segnalato come “da verificare”.</strong></summary>
+
+Non è stato associato o interpretato con sufficiente certezza. Controlla il documento originale e la voce del catalogo. Se l’inserimento si interrompe, controlla anche le righe già presenti prima di riprovare: non rilanciare automaticamente l’intero documento.
+
+</details>
+
+<details>
+<summary><strong>Come segnalo un problema?</strong></summary>
+
+Apri una [segnalazione su GitHub](https://github.com/1702micky/segretariommg/issues), indicando versione e passaggi per riprodurre il problema. **Non allegare referti o schermate con dati personali**: usa esempi sintetici o completamente anonimizzati.
+
+</details>
+
+---
+
+[Tutte le versioni](https://github.com/1702micky/segretariommg/releases) · [Guida completa al setup](installer/LEGGIMI-INSTALLER.md) · [Informazioni per sviluppatori](docs/SVILUPPO.md)

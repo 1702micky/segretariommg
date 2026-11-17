@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="330" viewBox="0 0 1200 330" role="img" aria-label="Segretario MMG: referti e prescrizioni, con meno passaggi">
+  <defs><linearGradient id="bg" x2="1" y2="1"><stop stop-color="#102f3e"/><stop offset="1" stop-color="#116a70"/></linearGradient></defs>
+  <rect width="1200" height="330" rx="22" fill="url(#bg)"/>
+  <circle cx="1100" cy="40" r="180" fill="#fff" opacity=".035"/>
+  <circle cx="1060" cy="300" r="140" fill="#fff" opacity=".035"/>
+  <g font-family="Segoe UI,Arial,sans-serif">
+    <rect x="48" y="38" width="190" height="30" rx="15" fill="#cdf7e8"/>
+    <text x="67" y="59" fill="#114a48" font-size="13" font-weight="700" letter-spacing="1">ASSISTENTE PER EUMED</text>
+    <text x="48" y="136" fill="white" font-size="57" font-weight="700">Segretario MMG</text>
+    <text x="50" y="184" fill="#d5eeee" font-size="25">Referti e prescrizioni, con meno passaggi.</text>
+    <text x="50" y="224" fill="#b9d8dc" font-size="18">Tre modalità di lavoro. IA locale. Controllo del medico.</text>
+    <text x="50" y="286" fill="#d5eeee" font-size="14">WINDOWS  ·  CHROME  ·  PDF E IMMAGINI</text>
+  </g>
+  <g transform="translate(930 75)">
+    <rect width="170" height="185" rx="18" fill="#fff" opacity=".12"/>
+    <rect x="23" y="22" width="124" height="141" rx="9" fill="#edf8f6"/>
+    <path d="M43 49h62M43 65h83M43 81h53" stroke="#82b4b5" stroke-width="6" stroke-linecap="round"/>
+    <rect x="38" y="103" width="18" height="18" rx="4" fill="#c7e8dc"/>
+    <path d="m42 111 4 4 7-9" fill="none" stroke="#17776c" stroke-width="3"/>
+    <path d="M69 111h51M43 140h77" stroke="#82b4b5" stroke-width="6" stroke-linecap="round"/>
+  </g>
+</svg>
