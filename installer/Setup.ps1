@@ -1,8 +1,10 @@
-﻿param([Parameter(Mandatory=$true)][string]$PackageRoot)
+﻿param([Parameter(Mandatory=$true)][string]$PackageRoot,[string]$ProgressFile)
+$script:SetupProgressFile=$ProgressFile
 $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'Setup.Helpers.ps1')
 . (Join-Path $PSScriptRoot 'runtime/Download.Helpers.ps1')
 Add-Type -AssemblyName System.Windows.Forms
+Publish-SetupProgress 'Scelta delle opzioni' 'Conferma gli avvisi e scegli il modello nella finestra di configurazione.'
 $Root='C:\AI\segretario-mmg-extension'
 $identity=[Security.Principal.WindowsIdentity]::GetCurrent()
 $admin=New-Object Security.Principal.WindowsPrincipal($identity)
@@ -10,8 +12,10 @@ if (-not $admin.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 $interactive=(Get-CimInstance Win32_ComputerSystem).UserName
 if ($interactive -and $interactive -ne $identity.Name) { throw 'Esegui il setup con lo stesso utente Windows che usa Chrome (elevazione con credenziali diverse non supportata).' }
 if (-not [Environment]::Is64BitOperatingSystem) { throw 'Occorre Windows a 64 bit.' }
-$preflight=[Windows.Forms.MessageBox]::Show("Prima di iniziare:`r`n`r`n- Chiudi completamente Chrome e non riaprirlo fino al messaggio finale di installazione completata.`r`n- Chiudi i lavori IA in corso: il setup configura e riavvia Ollama.`r`n- Lascia il PC acceso e collegato a Internet.`r`n`r`nI download sono di diversi GB: con una connessione lenta l'installazione puo richiedere anche un'ora o piu. Il tempo non e fisso.`r`n`r`nContinuare?",'Segretario MMG - Prima di iniziare','OKCancel','Information')
-if ($preflight -ne 'OK') { exit 0 }
+$preflight=[Windows.Forms.MessageBox]::Show("Prima di iniziare:`r`n`r`n- Salva prima tutti i lavori aperti in Chrome. Premendo OK il programma chiudera automaticamente Chrome (anche le finestre in background) del tuo account. I dati non salvati potrebbero andare persi. Non riaprirlo fino al termine.`r`n- Chiudi i lavori IA in corso: il setup configura e riavvia Ollama.`r`n- Lascia il PC acceso e collegato a Internet.`r`n`r`nI download sono di diversi GB: con una connessione lenta l'installazione puo richiedere anche un'ora o piu. Il tempo non e fisso.`r`n`r`nContinuare?",'Segretario MMG - Prima di iniziare','OKCancel','Information')
+if ($preflight -ne 'OK') { exit 3 }
+Close-UserChrome -UserSid $identity.User.Value
+Start-Sleep -Seconds 2
 if (Get-Process chrome -ErrorAction SilentlyContinue) {
     [Windows.Forms.MessageBox]::Show('Chiudi completamente Chrome e rilancia il setup. Nessuna modifica eseguita.','Segretario MMG') | Out-Null
     exit 2
@@ -31,12 +35,13 @@ $updates=New-Object Windows.Forms.CheckBox;$updates.Text='Controlla automaticame
 $note=New-Object Windows.Forms.Label;$note.Text='Ollama sara avviato con Windows. IA locale, ragionamento esteso disattivato. Il setup configura OLLAMA_ORIGINS e riavvia Ollama: chiudi altri lavori IA prima di continuare.';$note.Location=New-Object Drawing.Point(20,265);$note.Size=New-Object Drawing.Size(600,50);$form.Controls.Add($note)
 $ok=New-Object Windows.Forms.Button;$ok.Text='Installa';$ok.Location=New-Object Drawing.Point(400,325);$ok.DialogResult='OK';$form.AcceptButton=$ok;$form.Controls.Add($ok)
 $cancel=New-Object Windows.Forms.Button;$cancel.Text='Annulla';$cancel.Location=New-Object Drawing.Point(510,325);$cancel.DialogResult='Cancel';$form.CancelButton=$cancel;$form.Controls.Add($cancel)
-if ($form.ShowDialog() -ne 'OK') { exit 0 }
+if ($form.ShowDialog() -ne 'OK') { exit 3 }
 $model=if($small.Checked){'qwen3-vl:2b-instruct-q4_K_M'}else{'qwen3.5:4b-q4_K_M'}
 $State=Join-Path $env:LOCALAPPDATA 'SegretarioMMG'
 New-Item -ItemType Directory -Force $State | Out-Null
 Start-Transcript -Path (Join-Path $State 'setup.log') -Append | Out-Null
 try {
+    Publish-SetupProgress '1 / 7 - Preparazione' 'Verifica dei file, backup e installazione dei componenti.'
     [Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12
     Add-Type -AssemblyName System.IO.Compression.FileSystem
     $payload=Join-Path $PackageRoot 'payload'
@@ -60,15 +65,19 @@ try {
     if(-not (Test-Path $exe)){
         $download=Join-Path $State 'OllamaSetup.exe'
         Write-Host 'Download di Ollama dal sito ufficiale...'
-        Receive-FileWithProgress -Uri 'https://ollama.com/download/OllamaSetup.exe' -OutFile $download -Activity 'Download Ollama' -TimeoutSeconds 7200
+        Publish-SetupProgress '2 / 7 - Download Ollama' 'Connessione al sito ufficiale...'
+        Receive-FileWithProgress -Uri 'https://ollama.com/download/OllamaSetup.exe' -OutFile $download -Activity '2 / 7 - Download Ollama' -TimeoutSeconds 7200
+        Publish-SetupProgress '3 / 7 - Installazione Ollama' 'Verifica della firma e installazione. Questa fase puo richiedere diversi minuti.'
         $signature=Get-AuthenticodeSignature $download
         if($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notmatch 'Ollama'){throw 'Firma del programma Ollama non valida: installazione fermata.'}
         Write-Host 'Installazione Ollama. Attendere: Chrome deve restare chiuso.'
-        $process=Start-Process $download -ArgumentList '/VERYSILENT /NORESTART' -PassThru -WindowStyle Hidden
+        Enable-HiddenOllamaInstall
+        $process=Start-Process $download -ArgumentList '/VERYSILENT /NORESTART /SUPPRESSMSGBOXES' -PassThru -WindowStyle Hidden
         try { Wait-OllamaInstaller -Process $process } finally { $process.Dispose() }
         if(-not(Test-Path $exe)){throw 'Il programma di installazione e terminato ma ollama.exe non e presente. Controlla il log.'}
         Write-Host 'Installazione Ollama terminata. Configurazione del servizio locale...'
     }
+    Publish-SetupProgress '4 / 7 - Configurazione IA locale' 'Autorizzazioni e avvio del servizio in background.'
     $manifest=Get-Content (Join-Path $Root 'manifest.json') -Raw|ConvertFrom-Json
     $sha=[Security.Cryptography.SHA256]::Create();$hash=$sha.ComputeHash([Convert]::FromBase64String($manifest.key));$sha.Dispose()
     $extensionId=-join ($hash[0..15]|ForEach-Object{[char](97+($_ -shr 4));[char](97+($_ -band 15))})
@@ -86,8 +95,9 @@ try {
     $ready=$false;for($i=0;$i -lt 30;$i++){try{Invoke-RestMethod 'http://127.0.0.1:11434/api/tags' -TimeoutSec 2|Out-Null;$ready=$true;break}catch{Start-Sleep -Seconds 1}}
     if(-not $ready){throw 'Ollama non risponde dopo avvio.'}
     Write-Host ('Download modello '+$model+' (puo richiedere diversi minuti)...')
-    & $exe pull $model
-    if($LASTEXITCODE -ne 0){throw 'Download modello non completato: rilancia il setup per riprendere.'}
+    Publish-SetupProgress '5 / 7 - Modello IA' ('Preparazione download: '+$model)
+    Receive-OllamaModel -Model $model
+    Publish-SetupProgress '6 / 7 - Verifica dei componenti' 'Prova IA senza ragionamento esteso, controllo OCR e lettore PDF.'
     $details=Invoke-RestMethod 'http://127.0.0.1:11434/api/show' -Method Post -ContentType 'application/json' -Body (@{model=$model}|ConvertTo-Json)
     if('vision' -notin $details.capabilities){throw 'Il modello non dichiara il supporto immagini.'}
     $testBody=@{model=$model;messages=@(@{role='user';content='Rispondi soltanto OK'});stream=$false;think=$false;options=@{num_predict=20;temperature=0}}|ConvertTo-Json -Depth 8
@@ -98,6 +108,7 @@ try {
     & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $Root 'VERIFICA_PADDLEOCR_BROWSER.ps1')
     if($LASTEXITCODE -ne 0){throw 'Verifica PaddleOCR non superata.'}
     foreach($pdf in 'vendor\pdf.mjs','vendor\pdf.worker.mjs'){if((Get-Item (Join-Path $Root $pdf)).Length -lt 100000){throw 'PDF parser incompleto'}}
+    Publish-SetupProgress '7 / 7 - Ultimi passaggi' 'Configurazione avvio, aggiornamenti e disinstallazione.'
     $action=New-ScheduledTaskAction -Execute 'powershell.exe' -Argument ('-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "'+(Join-Path $runtime 'Startup.ps1')+'"')
     $trigger=New-ScheduledTaskTrigger -AtLogOn -User $identity.Name
     $principal=New-ScheduledTaskPrincipal -UserId $identity.Name -LogonType Interactive -RunLevel Limited
@@ -134,6 +145,7 @@ try {
     foreach($property in $properties.Keys){New-ItemProperty -Path $registry -Name $property -Value $properties[$property] -PropertyType String -Force|Out-Null}
     foreach($property in 'NoModify','NoRepair'){New-ItemProperty -Path $registry -Name $property -Value 1 -PropertyType DWord -Force|Out-Null}
     $chrome=@("$env:ProgramFiles\Google\Chrome\Application\chrome.exe","${env:ProgramFiles(x86)}\Google\Chrome\Application\chrome.exe","$env:LOCALAPPDATA\Google\Chrome\Application\chrome.exe")|Where-Object{Test-Path $_}|Select-Object -First 1
+    Publish-SetupProgress 'Installazione verificata' 'Conferma il messaggio finale per aprire le istruzioni in Chrome.' 100
     # Le istruzioni restano leggibili anche se Chrome blocca la navigazione automatica.
     [Windows.Forms.MessageBox]::Show((Get-Content $help -Raw),'Installazione verificata')|Out-Null
     if($chrome){

@@ -8,7 +8,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/1702micky/segretariommg/releases/download/v0.16.6/SegretarioMMG-Setup-0.16.6.exe"><strong>↓ Scarica per Windows</strong></a>
+  <a href="https://github.com/1702micky/segretariommg/releases/download/v0.16.7/SegretarioMMG-Setup-0.16.7.exe"><strong>↓ Scarica per Windows</strong></a>
   &nbsp; · &nbsp;
   <a href="#inizia-in-quattro-passaggi">Come si installa</a>
   &nbsp; · &nbsp;
@@ -17,7 +17,7 @@
 
 <p align="center">Windows 64 bit · Google Chrome · IA sul tuo computer</p>
 
-> **Versione pilota 0.16.6.** Prima dell’uso abituale, prova il programma e controlla i risultati in Eumed. Il programma di installazione non è ancora firmato digitalmente.
+> **Versione pilota 0.16.7.** Prima dell’uso abituale, prova il programma e controlla i risultati in Eumed. Il programma di installazione non è ancora firmato digitalmente.
 
 ## Cosa puoi fare
 
@@ -47,9 +47,11 @@ Gli esami semplici possono essere inseriti come valori numerici; quelli composti
 
 ### 1 · Scarica e avvia il setup
 
-[**Scarica Segretario MMG per Windows**](https://github.com/1702micky/segretariommg/releases/download/v0.16.6/SegretarioMMG-Setup-0.16.6.exe)
+[**Scarica Segretario MMG per Windows**](https://github.com/1702micky/segretariommg/releases/download/v0.16.7/SegretarioMMG-Setup-0.16.7.exe)
 
-Chiudi completamente Chrome e gli eventuali lavori IA in corso. Non riaprire Chrome fino al messaggio finale di installazione completata. I download sono di diversi GB e, con una connessione lenta, possono richiedere anche un'ora o piu. Avvia il file e autorizza la richiesta di Windows. Usa lo stesso account amministratore con cui lavori in Chrome.
+Salva i lavori aperti in Chrome e chiudi gli eventuali lavori IA in corso. Il primo avviso del setup spiega che **premendo OK Chrome verrà chiuso automaticamente**, anche in background, per il tuo account: i dati non salvati potrebbero andare persi. Annullando, Chrome resta aperto. Non riaprirlo fino al messaggio finale. I download possono richiedere anche un'ora o più. Avvia il file e autorizza la richiesta di Windows. Usa lo stesso account amministratore con cui lavori in Chrome.
+
+La finestra di installazione mostra **fase in corso, tempo trascorso, MB e barra di avanzamento**. Durante le attese mostra un indicatore animato. La percentuale si riferisce al singolo download, non al tempo totale rimasto. Ollama viene avviato in background, senza aprire la chat durante il primo avvio gestito dal setup.
 
 Il programma viene installato in **`C:\AI\segretario-mmg-extension`**: mantieni questa cartella nello stesso posto.
 

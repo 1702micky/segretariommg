@@ -1,4 +1,4 @@
-function Get-DownloadProgress {
+﻿function Get-DownloadProgress {
     param([long]$Received, [long]$Total)
     $mb=$Received/1000000.0
     if($Total -gt 0){
@@ -30,6 +30,7 @@ function Receive-FileWithProgress {
             if($timer.ElapsedMilliseconds-$lastUpdate -ge 250){
                 $progress=Get-DownloadProgress $received $total
                 Write-Progress -Id 1 -Activity $Activity -Status $progress.Status -PercentComplete $progress.Percent
+                if(Get-Command Publish-SetupProgress -ErrorAction SilentlyContinue){Publish-SetupProgress $Activity $progress.Status $progress.Percent}
                 $lastUpdate=$timer.ElapsedMilliseconds
             }
         }

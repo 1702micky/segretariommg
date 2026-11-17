@@ -1,3 +1,9 @@
+Segretario MMG v0.16.7
+
+- Installer grafico con fasi, MB, barra e indicatore animato indipendente.
+- Chrome chiuso automaticamente solo dopo avviso e consenso, per il proprio account.
+- Primo avvio Ollama nascosto e servizio locale in background.
+
 Segretario MMG v0.16.6
 
 - Disinstallazione da App installate di Windows e menu Start; serve il nuovo setup.

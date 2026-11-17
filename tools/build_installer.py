@@ -23,7 +23,7 @@ with zipfile.ZipFile(package,'w',zipfile.ZIP_DEFLATED,compresslevel=6) as z:
  for p in (root/'installer/runtime').glob('*'):z.write(p,'runtime/'+p.name)
 csc=Path('C:/Windows/Microsoft.NET/Framework64/v4.0.30319/csc.exe')
 exe=output/f'SegretarioMMG-Setup-{version}.exe'
-subprocess.run([str(csc),'/nologo','/target:exe','/platform:x64',f'/out:{exe}',f'/win32manifest:{root / "installer/launcher.manifest"}',f'/resource:{package},package.zip','/reference:System.IO.Compression.FileSystem.dll',str(root/'installer/Launcher.cs')],check=True)
+subprocess.run([str(csc),'/nologo','/target:winexe','/platform:x64',f'/out:{exe}',f'/win32manifest:{root / "installer/launcher.manifest"}',f'/resource:{package},package.zip','/reference:System.IO.Compression.FileSystem.dll','/reference:System.Windows.Forms.dll','/reference:System.Drawing.dll','/reference:System.Web.Extensions.dll',str(root/'installer/Launcher.cs')],check=True)
 # Independent archive re-read, hash and privacy inventory checks.
 with zipfile.ZipFile(update) as z:
  assert set(z.namelist())=={'inventory.json'}|{'extension/'+n for n in names}
