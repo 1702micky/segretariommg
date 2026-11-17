@@ -1,4 +1,4 @@
-Segretario MMG v0.16.13
+Segretario MMG v0.16.14
 
 - Parser per tabella emocromo italiano/chimica clinica; conservazione del referto completo e misure secondarie.
 - Associazione P-COLESTEROLO al totale; non-HDL distinto come dato derivato senza prestazione autonoma univoca.

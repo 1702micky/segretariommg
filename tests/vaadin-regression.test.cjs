@@ -565,7 +565,9 @@ test('AI object rows remain source-bound and invented urine, chemistry panels an
   const filtered=c.validateUnprescribedAiSource(p,inlineLabFixture);
   assert.equal(filtered.results.length,1);assert.equal(filtered.results[0].value,'94');
   assert.equal(filtered.complex.length,1);assert.equal(filtered.complex[0].kind,'EMOCROMO');
-  assert.equal(filtered.uncertain.length,0);
+  assert.equal(filtered.uncertain.length,1);
+  assert.equal(filtered.uncertain[0].text,'P-CREATININA');
+  assert.match(filtered.uncertain[0].reason,/non confermati/);
   const legacy=c.expandUnprescribedPayload({r:[['glucosio','94','mg/dl','74','106','mg/dL','P-GLUCOSIO']],c:[],u:[]},lines);
   assert.equal(c.validateUnprescribedAiSource(legacy,inlineLabFixture).results.length,1);
   const schema=source.match(/  const UNPRESCRIBED_SCHEMA = \{[\s\S]*?\n  \};/)[0];

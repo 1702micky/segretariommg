@@ -1,3 +1,5 @@
-Versione 0.16.13: supporto ai referti con emocromo italiano esteso e risultati di chimica clinica sulla stessa riga. Parser indipendente dal marchio del laboratorio, conservazione delle righe dell'emocromo e delle misure secondarie. Associazione P-COLESTEROLO al totale, non-HDL separato da HDL/LDL.
+Versione 0.16.14: supporto ai referti con emocromo italiano esteso e risultati di chimica clinica sulla stessa riga. Parser indipendente dal marchio del laboratorio, conservazione delle righe dell'emocromo e delle misure secondarie. Associazione P-COLESTEROLO al totale, non-HDL separato da HDL/LDL.
 
 Protocollo IA con oggetti espliciti al posto delle tuple; istruzioni per non interpretare note generali, non inventare sezioni e non considerare mg/dl diverso da mg/dL. Verifica delle proposte rispetto a etichette, valori, unita e sezioni effettivamente presenti. Diagnostica numerica di accettazioni/scarti. 71 test superati; esempio sintetico pubblicato, documenti e diagnostici originali esclusi.
+
+Le proposte numeriche con nome realmente presente ma valore/unita non confermati generano un avviso esplicito in anteprima, senza inserimento: gli scarti non possono nascondere un esame presente.

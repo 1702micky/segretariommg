@@ -3,7 +3,7 @@
 
   // ============================================================
   // SEGRETARIO MMG
-  // Versione 0.16.13
+  // Versione 0.16.14
   //
   // - Estrazione con Qwen 3.5 4B locale
   // - Comunicazione diretta Ollama via service worker Chrome
@@ -10528,11 +10528,11 @@ ${sourceText}
 
     // Creatinina urinaria: il catalogo distingue 24h e voce per calcolo ACR.
     // Se il referto dice solo "U-creatinina" non inventiamo quale delle due.
-    if (n.includes("CREATININA") && /ACR|ALBUMIN.?CREAT/.test(n)) return exact("90.16.13_7");
+    if (n.includes("CREATININA") && /ACR|ALBUMIN.?CREAT/.test(n)) return exact("90.16.14_7");
     if (concept === "CREATININE_URINE" || (concept === "CREATININE" && detectSpecimen(query) === "URINE")) {
-      if (/24 ?H|24 ORE|GIORNALIER/.test(n)) return exact("90.16.13_3");
-      if (/ACR|ALBUMIN.?CREAT|RAPPORTO/.test(n)) return exact("90.16.13_7");
-      if (context?.urineCreatinineForAcr && !/MINZ|DROGHE|PERITONE|DIALISI/.test(n)) return exact("90.16.13_7");
+      if (/24 ?H|24 ORE|GIORNALIER/.test(n)) return exact("90.16.14_3");
+      if (/ACR|ALBUMIN.?CREAT|RAPPORTO/.test(n)) return exact("90.16.14_7");
+      if (context?.urineCreatinineForAcr && !/MINZ|DROGHE|PERITONE|DIALISI/.test(n)) return exact("90.16.14_7");
       return { blocked: true, reason: "Creatinina urinaria senza tipologia prescrivibile univoca" };
     }
 
@@ -11346,6 +11346,7 @@ ${sourceText}
     const normalized = normalizeExamName(sourceText);
     const sourceLines = String(sourceText || "").split(/\r?\n/);
     let rejectedNumeric = 0, rejectedComplex = 0, rejectedUncertain = 0;
+    const sourceWarnings = [];
     const results = (payload.results || []).filter(item => {
       const label = normalizeExamName(item.raw_label || item.exam || "");
       const value = String(item.value || "").trim();
@@ -11359,7 +11360,13 @@ ${sourceText}
         return !!item.unit && hasUnit && nearby.some(candidate =>
           (candidate.replace(/,/g, ".").match(/[+-]?\d+(?:\.\d+)?/g) || []).some(number => Number(number) === Number(literalValue)));
       });
-      if (!present) rejectedNumeric++;
+      if (!present) {
+        rejectedNumeric++;
+        if (label.length >= 3 && normalized.includes(label)) sourceWarnings.push({
+          text: String(item.raw_label || item.exam),
+          reason: "Risultato o unita proposti dall'IA non confermati nel testo: verifica il referto originale."
+        });
+      }
       return Boolean(present);
     });
     const kinds = ["EMOCROMO", "URINE", "PROTIDOGRAMMA", "TIPIZZAZIONE_LINFOCITARIA", "TIPIZZAZIONE_MONOCLONALE", "BENCE_JONES", "PSA_REFLEX", "BILIRUBINA", "SIEROLOGIA"];
@@ -11389,7 +11396,7 @@ ${sourceText}
       acceptedNumeric: results.length, acceptedComplex: complex.length,
       rejectedNumeric, rejectedComplex, rejectedUncertain
     });
-    return { ...payload, results, complex, uncertain };
+    return { ...payload, results, complex, uncertain: [...uncertain, ...sourceWarnings] };
   }
 
   async function extractUnprescribedWithQwen(reportText, progressCallback = null, options = {}) {
