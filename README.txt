@@ -1,3 +1,7 @@
+Segretario MMG v0.16.8
+
+- Setup: opzione per non scaricare modelli IA; seleziona poi un modello gia installato nell'estensione.
+
 Segretario MMG v0.16.7
 
 - Installer grafico con fasi, MB, barra e indicatore animato indipendente.
