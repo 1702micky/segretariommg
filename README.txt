@@ -1,3 +1,8 @@
+Segretario MMG v0.16.9
+
+- Referto non prescritto: riconoscimento diretto di righe AST/ALT/GOT/GPT con valore e U/L o UI/L, senza IA se tutto il testo e spiegato.
+- Nessun intervallo o data inventati.
+
 Segretario MMG v0.16.8
 
 - Setup: opzione per non scaricare modelli IA; seleziona poi un modello gia installato nell'estensione.

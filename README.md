@@ -8,7 +8,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/1702micky/segretariommg/releases/download/v0.16.8/SegretarioMMG-Setup-0.16.8.exe"><strong>↓ Scarica per Windows</strong></a>
+  <a href="https://github.com/1702micky/segretariommg/releases/download/v0.16.9/SegretarioMMG-Setup-0.16.9.exe"><strong>↓ Scarica per Windows</strong></a>
   &nbsp; · &nbsp;
   <a href="#inizia-in-quattro-passaggi">Come si installa</a>
   &nbsp; · &nbsp;
@@ -17,7 +17,7 @@
 
 <p align="center">Windows 64 bit · Google Chrome · IA sul tuo computer</p>
 
-> **Versione pilota 0.16.8.** Prima dell’uso abituale, prova il programma e controlla i risultati in Eumed. Il programma di installazione non è ancora firmato digitalmente.
+> **Versione pilota 0.16.9.** Prima dell’uso abituale, prova il programma e controlla i risultati in Eumed. Il programma di installazione non è ancora firmato digitalmente.
 
 ## Cosa puoi fare
 
@@ -47,7 +47,7 @@ Gli esami semplici possono essere inseriti come valori numerici; quelli composti
 
 ### 1 · Scarica e avvia il setup
 
-[**Scarica Segretario MMG per Windows**](https://github.com/1702micky/segretariommg/releases/download/v0.16.8/SegretarioMMG-Setup-0.16.8.exe)
+[**Scarica Segretario MMG per Windows**](https://github.com/1702micky/segretariommg/releases/download/v0.16.9/SegretarioMMG-Setup-0.16.9.exe)
 
 Salva i lavori aperti in Chrome e chiudi gli eventuali lavori IA in corso. Il primo avviso del setup spiega che **premendo OK Chrome verrà chiuso automaticamente**, anche in background, per il tuo account: i dati non salvati potrebbero andare persi. Annullando, Chrome resta aperto. Non riaprirlo fino al messaggio finale. I download possono richiedere anche un'ora o più. Avvia il file e autorizza la richiesta di Windows. Usa lo stesso account amministratore con cui lavori in Chrome.
 

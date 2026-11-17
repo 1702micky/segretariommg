@@ -3,7 +3,7 @@
 
   // ============================================================
   // SEGRETARIO MMG
-  // Versione 0.16.8
+  // Versione 0.16.9
   //
   // - Estrazione con Qwen 3.5 4B locale
   // - Comunicazione diretta Ollama via service worker Chrome
@@ -10505,11 +10505,11 @@ ${sourceText}
 
     // Creatinina urinaria: il catalogo distingue 24h e voce per calcolo ACR.
     // Se il referto dice solo "U-creatinina" non inventiamo quale delle due.
-    if (n.includes("CREATININA") && /ACR|ALBUMIN.?CREAT/.test(n)) return exact("90.16.8_7");
+    if (n.includes("CREATININA") && /ACR|ALBUMIN.?CREAT/.test(n)) return exact("90.16.9_7");
     if (concept === "CREATININE_URINE" || (concept === "CREATININE" && detectSpecimen(query) === "URINE")) {
-      if (/24 ?H|24 ORE|GIORNALIER/.test(n)) return exact("90.16.8_3");
-      if (/ACR|ALBUMIN.?CREAT|RAPPORTO/.test(n)) return exact("90.16.8_7");
-      if (context?.urineCreatinineForAcr && !/MINZ|DROGHE|PERITONE|DIALISI/.test(n)) return exact("90.16.8_7");
+      if (/24 ?H|24 ORE|GIORNALIER/.test(n)) return exact("90.16.9_3");
+      if (/ACR|ALBUMIN.?CREAT|RAPPORTO/.test(n)) return exact("90.16.9_7");
+      if (context?.urineCreatinineForAcr && !/MINZ|DROGHE|PERITONE|DIALISI/.test(n)) return exact("90.16.9_7");
       return { blocked: true, reason: "Creatinina urinaria senza tipologia prescrivibile univoca" };
     }
 
@@ -11473,7 +11473,23 @@ Per r usa solo il risultato corrente numerico e un range bilaterale chiaro. Non 
     };
   }
 
+  function extractSimpleTransaminaseReport(reportText) {
+    const lines = String(reportText || "").split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+    if (!lines.length) return null;
+    const results = [];
+    for (const line of lines) {
+      const match = line.match(/^(AST|ALT|GOT|GPT)\s+([+]?(?:\d+(?:[.,]\d+)?))\s+(U|UI)\s*\/\s*L\s*$/i);
+      if (!match) return null;
+      const exam = /^(AST|GOT)$/i.test(match[1]) ? "AST" : "ALT";
+      results.push({ exam, raw_label: exam, value: match[2], unit: `${match[3].toUpperCase()}/L`,
+        ref_min: "", ref_max: "", ref_unit: "" });
+    }
+    return results;
+  }
+
   function extractUnprescribedDeterministicRaw(reportText, layout) {
+    const simple = extractSimpleTransaminaseReport(reportText);
+    if (simple) return simple;
     let raw = [];
 
     if (layout === "SYNLAB_DATA_MEDICA") {
@@ -11774,12 +11790,12 @@ Per r usa solo il risultato corrente numerico e un range bilaterale chiaro. Non 
     let qwenResidualEvidenceCount = 0;
     let qwenResidualChars = 0;
 
-    if (!layout) {
+    if (!layout && !extractSimpleTransaminaseReport(reportText)) {
       qwenPayload = await extractUnprescribedWithQwen(reportText, progressCallback);
       rawResults.push(...(qwenPayload.results || []));
       uncertain.push(...(qwenPayload.uncertain || []));
       if (!reportDate && qwenPayload.report_date) reportDate = qwenPayload.report_date;
-    } else {
+    } else if (layout) {
       // Prima del rescue costruiamo i complessi già certi così le loro righe
       // non vengono scambiate per nuovi esami mancanti.
       const parserComplexForResidual = buildUnprescribedFixedComplexItems(

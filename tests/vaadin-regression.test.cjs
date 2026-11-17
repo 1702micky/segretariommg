@@ -333,6 +333,35 @@ test('generic calciuria is uncertain rather than guessed as a timed collection o
   assert.equal(context.resolvePrescriptionListItems([{ raw_label: 'calciuria 24h' }]).resolved[0].catalogCode, '90.11.4_3');
 });
 
+test('plain transaminase lines resolve directly with values and no invented ranges', async () => {
+  const context = reportContext();
+  load(['extractSimpleTransaminaseReport'], {}, context);
+  const raw = context.extractSimpleTransaminaseReport('AST 17 U/L\nALT 19 U/L');
+  const prepared = Array.from(raw, row => context.prepareUnprescribedNumericCandidate(row, ''));
+  assert.equal(prepared.every(x => x.success), true, JSON.stringify(prepared));
+  assert.deepEqual(prepared.map(x => x.item.catalogCode), ['90.09.2_0', '90.04.5_0']);
+  assert.deepEqual(prepared.map(x => Number(x.item.value)), [17, 19]);
+  assert.equal(raw.every(x => x.ref_min === '' && x.ref_max === ''), true);
+  assert.equal(context.extractSimpleTransaminaseReport('got 17,5 UI/L\ngpt 19 U/L').length, 2);
+  for (const text of ['', 'AST 17', 'ALT 19 mg/dL', 'AST 17 U/L\naltro esame 12', 'AST 17 U/L precedente 15', 'AST 10 - 40 U/L']) {
+    assert.equal(context.extractSimpleTransaminaseReport(text), null);
+  }
+  Object.assign(context, {
+    ensureLabCatalog: async () => {}, detectKnownLabLayout: () => null,
+    parseExplicitReportDateText: () => null,
+    extractUnprescribedWithQwen: () => { throw new Error('AI must not run for fully parsed plain lines'); },
+    buildUnprescribedFixedComplexItems: () => [], buildRawSerologyComplexItems: () => [],
+    detectSerologyComplexItems: () => ({ items: [], unmatched: [] }),
+    rawResultCoveredByUnprescribedComplex: () => false,
+  });
+  load(['extractUnprescribedDeterministicRaw', 'extractUnprescribedFromReport'], {}, context);
+  const result = await context.extractUnprescribedFromReport('AST 17 U/L\nALT 19 U/L');
+  assert.equal(result.numeric.length, 2);
+  assert.equal(result.stats.qwenUsed, false);
+  assert.equal(result.uncertain.length, 1); // Missing report date remains visible.
+  assert.equal(result.uncertain[0].text, 'Data del referto');
+});
+
 function reportContext() {
   const context = resolverContext();
   load(['cleanModelLabLabel', 'isSerologyCatalogEntry', 'looksLikeSerologyText',
