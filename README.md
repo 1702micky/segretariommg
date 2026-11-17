@@ -8,7 +8,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/1702micky/segretariommg/releases/download/v0.16.2/SegretarioMMG-Setup-0.16.2.exe"><strong>↓ Scarica per Windows</strong></a>
+  <a href="https://github.com/1702micky/segretariommg/releases/download/v0.16.3/SegretarioMMG-Setup-0.16.3.exe"><strong>↓ Scarica per Windows</strong></a>
   &nbsp; · &nbsp;
   <a href="#inizia-in-quattro-passaggi">Come si installa</a>
   &nbsp; · &nbsp;
@@ -17,7 +17,7 @@
 
 <p align="center">Windows 64 bit · Google Chrome · IA sul tuo computer</p>
 
-> **Versione pilota 0.16.2.** Prima dell’uso abituale, prova il programma e controlla i risultati in Eumed. Il programma di installazione non è ancora firmato digitalmente.
+> **Versione pilota 0.16.3.** Prima dell’uso abituale, prova il programma e controlla i risultati in Eumed. Il programma di installazione non è ancora firmato digitalmente.
 
 ## Cosa puoi fare
 
@@ -47,7 +47,7 @@ Gli esami semplici possono essere inseriti come valori numerici; quelli composti
 
 ### 1 · Scarica e avvia il setup
 
-[**Scarica Segretario MMG per Windows**](https://github.com/1702micky/segretariommg/releases/download/v0.16.2/SegretarioMMG-Setup-0.16.2.exe)
+[**Scarica Segretario MMG per Windows**](https://github.com/1702micky/segretariommg/releases/download/v0.16.3/SegretarioMMG-Setup-0.16.3.exe)
 
 Chiudi completamente Chrome e gli eventuali lavori IA in corso. Non riaprire Chrome fino al messaggio finale di installazione completata. I download sono di diversi GB e, con una connessione lenta, possono richiedere anche un'ora o piu. Avvia il file e autorizza la richiesta di Windows. Usa lo stesso account amministratore con cui lavori in Chrome.
 
@@ -75,6 +75,14 @@ Al termine del setup segui queste istruzioni, necessarie **solo la prima volta**
 
 Se avevi una vecchia copia di Segretario MMG, disattivala prima di aggiungere questa: non lasciare due copie attive.
 
+**Aprire la pagina delle estensioni:** il setup apre questa pagina e crea il collegamento **Apri estensioni Chrome** sul desktop. In alternativa copia questo indirizzo con il pulsante di copia del riquadro e incollalo nella barra degli indirizzi:
+
+```text
+chrome://extensions
+```
+
+Chrome non permette di aprire gli indirizzi `chrome://` da un collegamento in una pagina web. Puoi anche usare il menu **⋮ → Estensioni → Gestisci estensioni**.
+
 ### 4 · Apri Eumed
 
 Apri la sezione corretta, premi il pulsante **MMG** e scegli l’attività:
@@ -88,6 +96,16 @@ Apri la sezione corretta, premi il pulsante **MMG** e scegli l’attività:
 Nella schermata iniziale trovi anche il modello IA: puoi selezionare un altro modello già installato o premere **Aggiorna elenco**.
 
 Per la prima prova usa una breve lista di esami e controlla l’anteprima prima di inserire i dati.
+
+### Dove trovo il pulsante MMG? Posso spostarlo?
+
+![Pulsante MMG: premi per aprire, trascina per spostare](docs/images/pulsante-mmg.svg)
+
+Nella pagina di Eumed compare il pulsante scuro **MMG**, inizialmente in alto a destra. **Un clic apre il pannello** di Segretario MMG.
+
+Per spostarlo, **tieni premuto il tasto sinistro sul pulsante, trascinalo nella posizione che preferisci e rilascia**. Puoi così evitare che copra un campo o un comando di Eumed. La posizione viene ricordata nel profilo Chrome.
+
+Quando il pannello è aperto, puoi spostarlo trascinando la sua **barra superiore “SEGRETARIO MMG”**. L’immagine è illustrativa e riproduce l’aspetto del pulsante, senza dati reali.
 
 ## Gli aggiornamenti
 

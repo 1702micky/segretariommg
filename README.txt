@@ -1,3 +1,9 @@
+Segretario MMG v0.16.3
+
+- Setup: apre a fine installazione le estensioni Chrome e la home GitHub.
+- Collegamento desktop Apri estensioni Chrome.
+- Home GitHub: illustrazione MMG e istruzioni di trascinamento.
+
 Segretario MMG v0.16.2
 
 - Installer: attende solo il processo di installazione Ollama, non la successiva app tray.

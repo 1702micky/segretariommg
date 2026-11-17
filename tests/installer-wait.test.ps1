@@ -17,3 +17,5 @@ if(-not $timedOut){throw 'Timeout non gestito'}
 $setup=Get-Content (Join-Path $PSScriptRoot '../installer/Setup.ps1') -Raw
 if($setup -match 'Start-Process \$download[^\r\n]* -Wait\b'){throw 'Attesa di tutti i discendenti reintrodotta'}
 Write-Output '4 controlli installer superati: attesa processo, errore, timeout, nessuna attesa dei discendenti.'
+if($setup -notmatch "@\('chrome://extensions','https://github.com/1702micky/segretariommg'\)" -or $setup -notmatch 'Apri estensioni Chrome.lnk') {throw 'Mancano guida finale o collegamento estensioni'}
+Write-Output 'Verifica guida finale: homepage GitHub, pagina estensioni e collegamento desktop presenti.'

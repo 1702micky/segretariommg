@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="220" viewBox="0 0 1000 220" role="img" aria-label="Pulsante MMG scuro con testo bianco: clic per aprire, trascina per spostare">
+  <rect width="1000" height="220" rx="16" fill="#f0f5f6"/>
+  <g font-family="Segoe UI,Arial,sans-serif">
+    <rect x="48" y="72" width="128" height="62" rx="30" fill="#d8e1e5"/>
+    <rect x="45" y="67" width="128" height="62" rx="30" fill="#30343b"/>
+    <text x="75" y="106" font-size="25" fill="white" font-weight="700">MMG</text>
+    <text x="223" y="76" fill="#214852" font-size="23" font-weight="700">Un clic per aprire.</text>
+    <text x="223" y="113" fill="#214852" font-size="23" font-weight="700">Tieni premuto e trascina per spostare.</text>
+    <text x="223" y="151" fill="#526b73" font-size="18">Scegli una posizione comoda nella pagina di Eumed.</text>
+    <text x="48" y="192" fill="#71878e" font-size="12">ILLUSTRAZIONE DEL PULSANTE · NESSUN DATO REALE</text>
+  </g>
+</svg>

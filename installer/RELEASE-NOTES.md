@@ -1,5 +1,3 @@
-Versione 0.16.2: corretto il blocco del setup in attesa dell app Ollama nella barra di Windows. Il setup attende ora solo il programma di installazione, controlla il risultato e verifica il servizio.
+Versione 0.16.3: guida finale del setup con apertura delle estensioni Chrome e della home GitHub; collegamento desktop Apri estensioni Chrome. Homepage aggiornata con illustrazione del pulsante MMG e istruzioni per trascinarlo.
 
-Aggiunto avviso iniziale: non aprire Chrome fino al messaggio finale; con connessioni lente i download possono richiedere anche un ora o piu.
-
-Build pilota non firmata digitalmente. I test automatici non sostituiscono un collaudo completo su Windows pulito.
+Gli URL chrome:// non sono apribili da un link web: forniti indirizzo copiabile e collegamento locale. Build pilota non firmata digitalmente.
