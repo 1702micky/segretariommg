@@ -1,6 +1,6 @@
-# Segretario MMG - setup pilota 0.16.1
+# Segretario MMG - setup pilota 0.16.2
 
-Il file SegretarioMMG-Setup-0.16.1.exe e un installer unico Windows x64 che richiede elevazione UAC. E una build pilota compilata e controllata, NON ancora collaudata con installazione completa su un Windows pulito. Non e firmata digitalmente.
+Il file SegretarioMMG-Setup-0.16.2.exe e un installer unico Windows x64 che richiede elevazione UAC. E una build pilota compilata e controllata, NON ancora collaudata con installazione completa su un Windows pulito. Non e firmata digitalmente.
 
 ## Cosa fa
 
@@ -16,6 +16,8 @@ Il file SegretarioMMG-Setup-0.16.1.exe e un installer unico Windows x64 che rich
 - Tenta di aprire chrome://extensions e mostra le istruzioni manuali. L'aggiunta dell'estensione rimane manuale.
 
 ## Come provarlo
+
+Non avviare Chrome fino al messaggio finale di installazione completata. I download sono di diversi GB: con una connessione lenta possono richiedere anche un'ora o piu. Il setup attende la conclusione del solo programma di installazione Ollama, non la chiusura dell'app nella barra di Windows, e poi verifica il servizio locale. Non e piu necessario chiudere manualmente Ollama per sbloccare questo passaggio.
 
 1. Prima prova su un altro PC o macchina virtuale con snapshot, senza dati clinici.
 2. Chiudi Chrome e lavori IA in corso. Il setup si ferma se Chrome e aperto.

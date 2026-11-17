@@ -28,6 +28,10 @@ jobs:
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           node --test tests/vaadin-regression.test.cjs tests/ollama-models.test.cjs tests/diagnostics.test.cjs
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      # Test PowerShell isolati: non installano o avviano Ollama.
+      - name: Installer regression checks
+        shell: powershell
+        run: .\tests\installer-wait.test.ps1
       - name: Prepare PDF runtime
         shell: pwsh
         run: |

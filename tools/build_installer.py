@@ -19,6 +19,7 @@ with zipfile.ZipFile(package,'w',zipfile.ZIP_DEFLATED,compresslevel=6) as z:
  with zipfile.ZipFile(update) as u:
   for n in u.namelist():z.writestr('payload/'+n,u.read(n))
  z.write(root/'installer/Setup.ps1','Setup.ps1')
+ z.write(root/'installer/Setup.Helpers.ps1','Setup.Helpers.ps1')
  for p in (root/'installer/runtime').glob('*'):z.write(p,'runtime/'+p.name)
 csc=Path('C:/Windows/Microsoft.NET/Framework64/v4.0.30319/csc.exe')
 exe=output/f'SegretarioMMG-Setup-{version}.exe'
@@ -29,7 +30,7 @@ with zipfile.ZipFile(update) as z:
  for f in inventory['files']:assert hashlib.sha256(z.read('extension/'+f['path'])).hexdigest()==f['sha256']
  assert not any(n.lower().endswith(('.pdf','.xlsx','.log')) or '/sn' in n for n in z.namelist())
 with zipfile.ZipFile(package) as z:
- assert 'Setup.ps1' in z.namelist() and 'runtime/Startup.ps1' in z.namelist()
+ assert 'Setup.ps1' in z.namelist() and 'Setup.Helpers.ps1' in z.namelist() and 'runtime/Startup.ps1' in z.namelist()
 for p in [exe,update]:
  (output/(p.name+'.sha256')).write_text(hashlib.sha256(p.read_bytes()).hexdigest()+'  '+p.name+'\n')
 print(json.dumps({'version':version,'extension_files':len(names),'installer_bytes':exe.stat().st_size,'update_bytes':update.stat().st_size}))

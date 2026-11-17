@@ -1,3 +1,9 @@
+Segretario MMG v0.16.2
+
+- Installer: attende solo il processo di installazione Ollama, non la successiva app tray.
+- Avviso iniziale: Chrome chiuso fino al termine, download anche un ora o piu.
+- Messaggi di avanzamento, timeout ed errori del processo installer verificati.
+
 Segretario MMG v0.16.1
 
 - Report diagnostico TXT locale in tutte le modalita: tempi, conteggi, eventi IA, retry.

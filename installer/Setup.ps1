@@ -1,5 +1,6 @@
 ﻿param([Parameter(Mandatory=$true)][string]$PackageRoot)
 $ErrorActionPreference='Stop'
+. (Join-Path $PSScriptRoot 'Setup.Helpers.ps1')
 Add-Type -AssemblyName System.Windows.Forms
 $Root='C:\AI\segretario-mmg-extension'
 $identity=[Security.Principal.WindowsIdentity]::GetCurrent()
@@ -8,6 +9,8 @@ if (-not $admin.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 $interactive=(Get-CimInstance Win32_ComputerSystem).UserName
 if ($interactive -and $interactive -ne $identity.Name) { throw 'Esegui il setup con lo stesso utente Windows che usa Chrome (elevazione con credenziali diverse non supportata).' }
 if (-not [Environment]::Is64BitOperatingSystem) { throw 'Occorre Windows a 64 bit.' }
+$preflight=[Windows.Forms.MessageBox]::Show("Prima di iniziare:`r`n`r`n- Chiudi completamente Chrome e non riaprirlo fino al messaggio finale di installazione completata.`r`n- Chiudi i lavori IA in corso: il setup configura e riavvia Ollama.`r`n- Lascia il PC acceso e collegato a Internet.`r`n`r`nI download sono di diversi GB: con una connessione lenta l'installazione puo richiedere anche un'ora o piu. Il tempo non e fisso.`r`n`r`nContinuare?",'Segretario MMG - Prima di iniziare','OKCancel','Information')
+if ($preflight -ne 'OK') { exit 0 }
 if (Get-Process chrome -ErrorAction SilentlyContinue) {
     [Windows.Forms.MessageBox]::Show('Chiudi completamente Chrome e rilancia il setup. Nessuna modifica eseguita.','Segretario MMG') | Out-Null
     exit 2
@@ -56,11 +59,14 @@ try {
     if(-not (Test-Path $exe)){
         $download=Join-Path $State 'OllamaSetup.exe'
         Write-Host 'Download di Ollama dal sito ufficiale...'
-        Invoke-WebRequest 'https://ollama.com/download/OllamaSetup.exe' -UseBasicParsing -OutFile $download -TimeoutSec 1200
+        Invoke-WebRequest 'https://ollama.com/download/OllamaSetup.exe' -UseBasicParsing -OutFile $download -TimeoutSec 7200
         $signature=Get-AuthenticodeSignature $download
         if($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notmatch 'Ollama'){throw 'Firma del programma Ollama non valida: installazione fermata.'}
-        $process=Start-Process $download -ArgumentList '/VERYSILENT /NORESTART' -Wait -PassThru
-        if($process.ExitCode -ne 0 -or -not(Test-Path $exe)){throw 'Installazione Ollama non completata.'}
+        Write-Host 'Installazione Ollama. Attendere: Chrome deve restare chiuso.'
+        $process=Start-Process $download -ArgumentList '/VERYSILENT /NORESTART' -PassThru -WindowStyle Hidden
+        try { Wait-OllamaInstaller -Process $process } finally { $process.Dispose() }
+        if(-not(Test-Path $exe)){throw 'Il programma di installazione e terminato ma ollama.exe non e presente. Controlla il log.'}
+        Write-Host 'Installazione Ollama terminata. Configurazione del servizio locale...'
     }
     $manifest=Get-Content (Join-Path $Root 'manifest.json') -Raw|ConvertFrom-Json
     $sha=[Security.Cryptography.SHA256]::Create();$hash=$sha.ComputeHash([Convert]::FromBase64String($manifest.key));$sha.Dispose()
