@@ -8,7 +8,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/1702micky/segretariommg/releases/download/v0.16.15/SegretarioMMG-Setup-0.16.15.exe"><strong>↓ Scarica per Windows</strong></a>
+  <a href="https://github.com/1702micky/segretariommg/releases/download/v0.16.16/SegretarioMMG-Setup-0.16.16.exe"><strong>↓ Scarica per Windows</strong></a>
   &nbsp; · &nbsp;
   <a href="#inizia-in-quattro-passaggi">Come si installa</a>
   &nbsp; · &nbsp;
@@ -17,7 +17,7 @@
 
 <p align="center">Windows 64 bit · Google Chrome · IA sul tuo computer</p>
 
-> **Versione pilota 0.16.15.** Prima dell’uso abituale, prova il programma e controlla i risultati in Eumed. Il programma di installazione non è ancora firmato digitalmente.
+> **Versione pilota 0.16.16.** Prima dell’uso abituale, prova il programma e controlla i risultati in Eumed. Il programma di installazione non è ancora firmato digitalmente.
 
 ## Cosa puoi fare
 
@@ -51,7 +51,7 @@ Sono riconosciuti anche i referti con **ES. EMOCROMOCITOMETRICO** in italiano e 
 
 ### 1 · Scarica e avvia il setup
 
-[**Scarica Segretario MMG per Windows**](https://github.com/1702micky/segretariommg/releases/download/v0.16.15/SegretarioMMG-Setup-0.16.15.exe)
+[**Scarica Segretario MMG per Windows**](https://github.com/1702micky/segretariommg/releases/download/v0.16.16/SegretarioMMG-Setup-0.16.16.exe)
 
 Salva i lavori aperti in Chrome e chiudi gli eventuali lavori IA in corso. Il primo avviso del setup spiega che **premendo OK Chrome verrà chiuso automaticamente**, anche in background, per il tuo account: i dati non salvati potrebbero andare persi. Annullando, Chrome resta aperto. Non riaprirlo fino al messaggio finale. I download possono richiedere anche un'ora o più. Avvia il file e autorizza la richiesta di Windows. Usa lo stesso account amministratore con cui lavori in Chrome.
 
@@ -104,6 +104,8 @@ Apri la sezione corretta, premi il pulsante **MMG** e scegli l’attività:
 | Prescrivi esami da lista | **Accertamenti**, non Dashboard |
 
 Nella schermata iniziale trovi anche il modello IA: puoi selezionare un altro modello già installato o premere **Aggiorna elenco**.
+
+Se usi **Referto già prescritto** ma alcuni esami riconosciuti con certezza non hanno una riga disponibile in Eumed, compare **Da inserire senza prescrizioni** con **Copia blocco**. Copialo, apri **Registrazione esiti → Inserimento senza prescrizioni**, scegli **Referto non prescritto** e incollalo nel campo del referto. Analizza e controlla l'anteprima prima di inserire. Il blocco conserva data, valori, unità, intervalli disponibili e referti complessi, viene rivalidato senza IA e non è incluso nel report diagnostico. Contiene risultati del referto: usalo solo nel paziente corretto e non allegarlo a segnalazioni pubbliche.
 
 Per la prima prova usa una breve lista di esami e controlla l’anteprima prima di inserire i dati.
 

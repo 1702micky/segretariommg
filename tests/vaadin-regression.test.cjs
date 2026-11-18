@@ -461,7 +461,7 @@ function reportContext() {
   load(['cleanModelLabLabel', 'isSerologyCatalogEntry', 'looksLikeSerologyText',
     'normalizeValueString', 'parseItalianNumber', 'formatNumber', 'normalizeUnit', 'convertMeasurement',
     'parseBilateralRangeText', 'prepareRangeInput', 'shouldSuppressAutomaticRange', 'convertRange', 'unitsCompatible', 'sanitizeUnprescribedRange',
-    'isKnownResidualNonExamLabel', 'prepareUnprescribedNumericCandidate', 'sameNumericValue', 'valuesClinicallyEquivalent', 'dedupeUnprescribedNumeric',
+    'isKnownResidualNonExamLabel', 'prepareUnprescribedNumericCandidate', 'sameNumericValue', 'valuesClinicallyEquivalent', 'dedupeUnprescribedNumeric', 'parsePrescribedTransferText',
     'cleanReportLines', 'normalizeAouNumericToken', 'isNumericOrComparatorToken', 'isAouUnitToken',
     'isAouMajorLabel', 'parseAouBilateralRange', 'parseBilateralRangeFromTail',
     'parseInlineKnownMeasurement', 'parseAouContinuationMeasurement', 'extractAouPadovaResults',
@@ -548,6 +548,120 @@ test('the full unprescribed flow processes the new layout without AI rescue or i
   assert.equal(result.complex[0].complexKind,'EMOCROMO');assert.equal(result.stats.qwenUsed,false);
   assert.equal(result.uncertain.filter(x=>x.text!=='Data del referto').length,1);
   assert.ok(result.uncertain.some(x=>/dato derivato/.test(x.reason)));
+});
+
+function transferContext(available = []) {
+  const c=inlineLabContext();
+  load(['extractSimpleNumericReport','extractUnprescribedDeterministicRaw','extractPaddleTabularResults',
+    'removeUnsupportedDuplicateAssignments','sourceSupportScoreForResult','isHbA1cLabel','parseExplicitReportDateText',
+    'normalizeDateValue','isValidCalendarDateParts','formatDateForGrid',
+    'transferNumericSourceSupported','transferComplexSourceSupported','buildPrescribedTransferText','parsePrescribedTransferText',
+    'renderPrescribedTransferBlock','copyPrescribedTransferBlock','buildSynlabLongReport','sliceKnownSection','cleanupKnownLongReportLines',
+    'normalizedUnitLoose','unitCompatibleWithConcept','normalizePsaDisplayUnit','psaMeasurementNear','buildPsaReflexLongReportFromRawResults','buildPsaReflexLongReport',
+    'buildBilirubinComplexText','formatRawComplexResult'],{},c);
+  c.resolveExamName=name=>({success:available.includes(name),reason:available.includes(name)?'matched':'known_not_in_grid'});
+  c.escapeHtml=text=>String(text).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  return c;
+}
+
+test('copy transfer excludes existing exams and derived/unmatched data and preserves raw units, ranges and date',()=>{
+  const c=transferContext();
+  const existing=[c.findCatalogEntryByCode('90.16.3_2').name,c.getFixedComplexCatalogEntry('EMOCROMO').name];
+  c.resolveExamName=name=>({success:existing.includes(name),reason:'known_not_in_grid'});
+  const text=c.buildPrescribedTransferText({reportDate:'2026-02-01',recognizedNotInGrid:[]},inlineLabFixture);
+  const payload=JSON.parse(text);
+  assert.equal(payload.data_referto,'2026-02-01');assert.equal(payload.numerici.length,4);assert.equal(payload.complessi.length,0);
+  assert.ok(!payload.numerici.some(x=>x.codice==='90.16.3_2'));
+  const glucose=payload.numerici.find(x=>x.codice==='90.27.1_2');
+  assert.equal(glucose.valore,'94');assert.equal(glucose.unita,'mg/dL');assert.equal(glucose.min,'74');assert.equal(glucose.max,'106');
+  const restored=c.parsePrescribedTransferText(text);
+  assert.equal(restored.numeric.length,4);assert.equal(restored.reportDate,'2026-02-01');assert.equal(restored.stats.qwenUsed,false);
+});
+
+test('transfer keeps complete complex reports and is accepted directly by unprescribed analysis',async()=>{
+  const c=transferContext();
+  const text=c.buildPrescribedTransferText({reportDate:'2026-02-01'},inlineLabFixture);
+  const data=JSON.parse(text);assert.equal(data.complessi.length,1);
+  assert.match(data.complessi[0].testo,/148,0 g\/L/);assert.match(data.complessi[0].testo,/2,13 x10/);
+  load(['extractUnprescribedFromReport'],{},c);
+  c.ensureLabCatalog=async()=>{};
+  c.extractUnprescribedWithQwen=()=>{throw Error('A copied transfer must never call AI');};
+  const result=await c.extractUnprescribedFromReport(text);
+  assert.equal(result.numeric.length,5);assert.equal(result.complex.length,1);assert.equal(result.uncertain.length,0);
+});
+
+test('edited transfer codes, incompatible units and malformed JSON are rejected before any writing',()=>{
+  const c=transferContext();const data=JSON.parse(c.buildPrescribedTransferText({reportDate:'2026-02-01'},inlineLabFixture));
+  data.numerici[0].codice='INVALID';assert.throws(()=>c.parsePrescribedTransferText(JSON.stringify(data)),/Associazione/);
+  assert.throws(()=>c.parsePrescribedTransferText('{"formato":"SEGRETARIO_MMG_REFERTO_V1",'),/incompleto/);
+  const valid=JSON.parse(c.buildPrescribedTransferText({reportDate:'2026-02-01'},inlineLabFixture));
+  valid.numerici.find(x=>x.codice==='90.27.1_2').unita='U/L';
+  assert.throws(()=>c.parsePrescribedTransferText(JSON.stringify(valid)),/non validabili/);
+  assert.equal(c.parsePrescribedTransferText('AST 17 U/L'),null);
+});
+
+test('unsupported AI values and genuine catalog ambiguities never enter the transfer',()=>{
+  const c=transferContext();c.resolveExamName=()=>({success:false,reason:'ambiguous'});
+  assert.equal(c.buildPrescribedTransferText({reportDate:'2026-02-01'},inlineLabFixture),'');
+  c.resolveExamName=()=>({success:false,reason:'known_not_in_grid'});
+  const block=c.buildPrescribedTransferText({reportDate:'2026-02-01',recognizedNotInGrid:[
+    {raw_label:'P-GLUCOSIO',value:'999',unit:'mg/dL',catalogCode:'90.27.1_2'}]},inlineLabFixture);
+  assert.equal(JSON.parse(block).numerici.find(x=>x.codice==='90.27.1_2').valore,'94');
+});
+
+test('copy action writes only after explicit invocation and rendered clinical text is escaped',async()=>{
+  const c=transferContext();let copied='';c.navigator={clipboard:{writeText:async text=>{copied=text;}}};
+  assert.equal(copied,'');assert.equal(await c.copyPrescribedTransferBlock({value:'synthetic transfer'}),true);assert.equal(copied,'synthetic transfer');
+  const html=c.renderPrescribedTransferBlock('</textarea><script>synthetic</script>');
+  assert.doesNotMatch(html,/<script>/);assert.match(html,/&lt;script&gt;/);
+});
+
+test('a reported PSA total alone is copied without invented free PSA or ratio',()=>{
+  const c=transferContext();
+  const text='s - ANTIGENE PROSTATICO SPECIFICO (PSA)\nMetodo: chemiluminescenza\n1,320 ng/mL';
+  const payload=JSON.parse(c.buildPrescribedTransferText({reportDate:'2026-02-01'},text));
+  assert.equal(payload.complessi.length,1);assert.equal(payload.complessi[0].tipo,'PSA_REFLEX');
+  assert.match(payload.complessi[0].testo,/1,320 ng\/mL/);assert.doesNotMatch(payload.complessi[0].testo,/libero|rapporto/i);
+  assert.equal(c.parsePrescribedTransferText(JSON.stringify(payload)).complex.length,1);
+});
+
+test('Italian CBC ends before a following SI-prefixed VES test',()=>{
+  const c=transferContext();
+  const source=inlineLabFixture.replace('CHIMICA CLINICA','si - V.E.S. (VELOCITA DI ERITROSEDIMENTAZIONE)\nMetodo: FOTOMETRIA\n7 mm/h\nCHIMICA CLINICA');
+  assert.doesNotMatch(c.extractExplicitCbcSection(source),/V\.E\.S\./);
+  const synlab=source.replace('ES. EMOCROMOCITOMETRICO','si - ESAME EMOCROMOCITOMETRICO');
+  assert.doesNotMatch(c.buildSynlabLongReport(synlab,'EMOCROMO'),/V\.E\.S\./);
+  const block=JSON.parse(c.buildPrescribedTransferText({reportDate:'2026-02-01'},source));
+  assert.ok(block.numerici.some(x=>x.codice==='90.82.5_0'&&x.valore==='7'));
+});
+
+test('the production Eumed resolver keeps existing matrix-specific and complex rows out of transfer',()=>{
+  const c=transferContext();
+  const specimenStart=source.indexOf('  function specimenCompatible(');
+  vm.runInContext(source.slice(specimenStart,source.indexOf('  const CATALOG_QUERY_ALIASES',specimenStart)),c);
+  load(['matchCatalog','gridMatchesCatalogEntry','resolveExamName'],{},c);
+  vm.runInContext(source.match(/  const EXAM_ALIASES = \{[\s\S]*?\n  \};/)[0],c);
+  c.getAvailableExams=()=>['CREATININA [S] con eventuale eGFR','ESAME EMOCROMOCITOMETRICO','CALCIO TOTALE [S]','VITAMINA D (25 OH)',
+    'TIREOTROPINA (TSH). Non associabile a TSH Reflex','TIROXINA LIBERA (FT4). Non associabile a 90.41.8'];
+  const data=JSON.parse(c.buildPrescribedTransferText({reportDate:'2026-02-01'},inlineLabFixture));
+  assert.equal(data.numerici.length,4);assert.equal(data.complessi.length,0);
+  assert.ok(!data.numerici.some(x=>x.codice==='90.16.3_2'));
+  load(['targetConceptTerms','residualTargetHasTextAnchor'],{},c);
+  for(const target of c.getAvailableExams().slice(2))assert.equal(c.residualTargetHasTextAnchor(inlineLabFixture,target),false,target);
+});
+
+test('no empty Eumed rows runs read-only analysis and offers transfer without invoking any writer',async()=>{
+  const c=transferContext();let reads=0,writes=0;
+  Object.assign(c,{isBusy:false,textarea:{value:inlineLabFixture},resultsBox:{innerHTML:''},
+    invalidate(){},setBusy(value){c.isBusy=value;},examRowSelectionCache:new Map(),ensureLabCatalog:async()=>{},
+    scanAllEumedRows:async()=>({count:0}),getEmptyEumedExams:()=>[],
+    extractUnprescribedFromReport:async()=>{reads++;return {reportDate:'2026-02-01',numeric:[]};},
+    setExamRecords:async()=>{writes++;throw Error('Unexpected writer');},
+    writeNonPrescribedItems:async()=>{writes++;throw Error('Unexpected writer');}});
+  load(['runAutoWorkflow'],{},c);
+  await c.runAutoWorkflow();
+  assert.equal(reads,1);assert.equal(writes,0);assert.equal(c.isBusy,false);
+  assert.match(c.resultsBox.innerHTML,/data-transfer-copy/);assert.doesNotMatch(c.resultsBox.innerHTML,/Errore nel workflow/);
 });
 
 test('AI object rows remain source-bound and invented urine, chemistry panels and generic notes are rejected', () => {

@@ -3,7 +3,7 @@
 
   // ============================================================
   // SEGRETARIO MMG
-  // Versione 0.16.15
+  // Versione 0.16.16
   //
   // - Estrazione con Qwen 3.5 4B locale
   // - Comunicazione diretta Ollama via service worker Chrome
@@ -5739,7 +5739,7 @@ ${numberedReportText}
   }
 
   function parseBilateralRangeFromTail(text) {
-    const s = String(text ?? "").trim();
+    const s = String(text ?? "").trim().replace(/^\[|\]$/g, "");
     const m = s.match(
       /(?:^|\s)([+-]?\d+(?:[.,]\d+)?)\s*[-–]\s*([+-]?\d+(?:[.,]\d+)?)(?:\s|$)/
     );
@@ -7625,7 +7625,7 @@ ${sourceText}
     const start = lines.findIndex(line => /^(?:ES\.?\s*|ESAME\s+)?EMOCROMOCITOMETRICO\s*$/i.test(line));
     if (start < 0 || !reportContainsLongReportCluster(reportText, "EMOCROMO")) return "";
     let end = start + 1;
-    while (end < lines.length && !/^(?:CHIMICA CLINICA|BIOCHIMICA|IMMUNOLOGIA|ENDOCRINOLOGIA|[PSU]\s*-|FIRMATO|IL RESPONSABILE|VALIDAZIONE)/i.test(lines[end])) end++;
+    while (end < lines.length && !/^(?:CHIMICA CLINICA|BIOCHIMICA|IMMUNOLOGIA|ENDOCRINOLOGIA|(?:SI|P|S|U|B)\s*-|FIRMATO|IL RESPONSABILE|VALIDAZIONE)/i.test(lines[end])) end++;
     return lines.slice(start, end).filter(Boolean).join("\n");
   }
 
@@ -7995,7 +7995,7 @@ ${sourceText}
       .join("\n")
       .trim();
   }
-  function buildSynlabLongReport(reportText,kind){const lines=cleanReportLines(reportText);if(kind==="EMOCROMO"){const section=sliceKnownSection(lines,line=>/ESAME EMOCROMOCITOMETRICO|EMOCROMO COMPLETO/i.test(line),line=>/^(?:P|S|U)\s*-\s*/i.test(line)&&!/EMOCROM/i.test(line));return cleanupKnownLongReportLines(section).join("\n").trim();}if(kind==="URINE"){const section=sliceKnownSection(lines,line=>/^(?:U\s*-\s*)?ESAME URINE COMPLETO/i.test(line),line=>/^\(\*\)\s*=/.test(line)||/^\[SIGNIT_/i.test(line)||/^Firmato digitalmente/i.test(line));return cleanupKnownLongReportLines(section).join("\n").trim();}if(kind==="PROTIDOGRAMMA"){const section=sliceKnownSection(lines,line=>/PROTIDOGRAMMA/i.test(line)||(/ELETTROFORESI/i.test(line)&&/PROTEIN/i.test(line)),line=>/^(?:P|S|U)\s*-\s*/i.test(line));return cleanupKnownLongReportLines(section).join("\n").trim();}return "";}
+  function buildSynlabLongReport(reportText,kind){const lines=cleanReportLines(reportText);if(kind==="EMOCROMO"){const section=sliceKnownSection(lines,line=>/ESAME EMOCROMOCITOMETRICO|EMOCROMO COMPLETO/i.test(line),line=>/^(?:SI|P|S|U|B)\s*-\s*/i.test(line)&&!/EMOCROM/i.test(line));return cleanupKnownLongReportLines(section).join("\n").trim();}if(kind==="URINE"){const section=sliceKnownSection(lines,line=>/^(?:U\s*-\s*)?ESAME URINE COMPLETO/i.test(line),line=>/^\(\*\)\s*=/.test(line)||/^\[SIGNIT_/i.test(line)||/^Firmato digitalmente/i.test(line));return cleanupKnownLongReportLines(section).join("\n").trim();}if(kind==="PROTIDOGRAMMA"){const section=sliceKnownSection(lines,line=>/PROTIDOGRAMMA/i.test(line)||(/ELETTROFORESI/i.test(line)&&/PROTEIN/i.test(line)),line=>/^(?:P|S|U)\s*-\s*/i.test(line));return cleanupKnownLongReportLines(section).join("\n").trim();}return "";}
 
   function buildUlss6LongReport(reportText,kind){
     const lines=cleanReportLines(reportText);
@@ -10528,11 +10528,11 @@ ${sourceText}
 
     // Creatinina urinaria: il catalogo distingue 24h e voce per calcolo ACR.
     // Se il referto dice solo "U-creatinina" non inventiamo quale delle due.
-    if (n.includes("CREATININA") && /ACR|ALBUMIN.?CREAT/.test(n)) return exact("90.16.15_7");
+    if (n.includes("CREATININA") && /ACR|ALBUMIN.?CREAT/.test(n)) return exact("90.16.16_7");
     if (concept === "CREATININE_URINE" || (concept === "CREATININE" && detectSpecimen(query) === "URINE")) {
-      if (/24 ?H|24 ORE|GIORNALIER/.test(n)) return exact("90.16.15_3");
-      if (/ACR|ALBUMIN.?CREAT|RAPPORTO/.test(n)) return exact("90.16.15_7");
-      if (context?.urineCreatinineForAcr && !/MINZ|DROGHE|PERITONE|DIALISI/.test(n)) return exact("90.16.15_7");
+      if (/24 ?H|24 ORE|GIORNALIER/.test(n)) return exact("90.16.16_3");
+      if (/ACR|ALBUMIN.?CREAT|RAPPORTO/.test(n)) return exact("90.16.16_7");
+      if (context?.urineCreatinineForAcr && !/MINZ|DROGHE|PERITONE|DIALISI/.test(n)) return exact("90.16.16_7");
       return { blocked: true, reason: "Creatinina urinaria senza tipologia prescrivibile univoca" };
     }
 
@@ -11955,9 +11955,133 @@ Per r usa solo il risultato corrente numerico e un range bilaterale chiaro. Non 
     return null;
   }
 
+  function transferNumericSourceSupported(item, reportText) {
+    const label = normalizeExamName(item.raw_label || item.exam || "");
+    const value = String(item.value || "").replace(/^[<>\u2264\u2265]\s*/, "").replace(",", ".");
+    if (!label || !/^[+-]?\d+(?:\.\d+)?$/.test(value) || !item.unit) return false;
+    const lines = cleanReportLines(reportText);
+    return lines.some((line, index) => {
+      if (!normalizeExamName(line).includes(label)) return false;
+      const measurements = [];
+      const direct = parseInlineSpecimenMeasurement(line) || parseInlineKnownMeasurement(line);
+      if (direct) measurements.push(direct);
+      for (let i = index + 1; i < Math.min(lines.length, index + 6); i++) {
+        if (/^(?:SI|S|P|U|B)\s*-\s*/i.test(lines[i])) break;
+        const next = parseAnchoredMeasurementLine(lines[i]);
+        if (next) measurements.push(next);
+      }
+      return measurements.some(measurement => Number(String(measurement.value).replace(",", ".")) === Number(value) &&
+        normalizeUnit(measurement.unit) === normalizeUnit(item.unit));
+    });
+  }
+
+  function transferComplexSourceSupported(kind, text) {
+    if (kind === "BILIRUBINA") return /BILIRUBINA/.test(normalizeExamName(text));
+    if (kind === "PSA_REFLEX") return /\bPSA\b|ANTIGENE PROSTATICO SPECIFICO/.test(normalizeExamName(text));
+    return reportReallyContainsLongReportKind(text, kind);
+  }
+
+  function buildPrescribedTransferText(extraction, reportText) {
+    if (!String(reportText || "").trim()) return "";
+    const layout = detectKnownLabLayout(reportText);
+    const raw = extractUnprescribedDeterministicRaw(reportText, layout);
+    const context = buildUnprescribedDecisionContext(reportText, raw);
+    const date = normalizeDateValue(extraction.reportDate || parseExplicitReportDateText(reportText)?.date || "");
+    const absent = entry => {
+      const resolution = resolveExamName(entry.name);
+      return !resolution.success && resolution.reason !== "ambiguous";
+    };
+    const fixed = buildUnprescribedFixedComplexItems(reportText, layout, raw, date)
+      .filter(item => absent(item.catalogEntry) && transferComplexSourceSupported(item.complexKind, item.text));
+    // A PSA total alone is still a complete reported result. Do not invent a
+    // free PSA or a ratio just because the catalog groups them in one entry.
+    if (!fixed.some(item=>item.complexKind === "PSA_REFLEX")) {
+      const psa=raw.filter(item=>getExamConcept(`${item.raw_label || ""} ${item.exam || ""}`)==="PSA_TOTAL" &&
+        transferNumericSourceSupported(item,reportText) && unitCompatibleWithConcept("PSA_TOTAL",item.unit));
+      const entry=getFixedComplexCatalogEntry("PSA_REFLEX");
+      if (psa.length && psa.every(item=>normalizeUnit(item.unit)===normalizeUnit(psa[0].unit) && sameNumericValue(item.value,psa[0].value)) && entry && absent(entry)) {
+        const item=psa[0];
+        fixed.push({exam:entry.name,catalogCode:entry.code,catalogEntry:entry,complexKind:"PSA_REFLEX",reportDate:date,
+          text:`PSA totale: ${item.value} ${item.unit}${item.reference_text ? "\nRiferimento: "+item.reference_text : ""}`});
+      }
+    }
+    const complexCodes = new Set(fixed.map(item => item.catalogCode));
+    const groups = new Map();
+    for (const item of [...raw, ...(extraction.recognizedNotInGrid || [])]) {
+      if (!transferNumericSourceSupported(item, reportText)) continue;
+      const prepared = prepareUnprescribedNumericCandidate(item, date, context);
+      if (!prepared.success || complexCodes.has(prepared.item.catalogCode) ||
+          getLongReportKind(prepared.item.exam) || !absent(prepared.item.catalogEntry)) continue;
+      if (item.catalogCode && item.catalogCode !== prepared.item.catalogCode) continue;
+      const rows = groups.get(prepared.item.catalogCode) || [];
+      rows.push({raw:item,prepared:prepared.item});groups.set(prepared.item.catalogCode,rows);
+    }
+    const numeric = [];
+    for (const rows of groups.values()) {
+      const first = rows[0];
+      if (!rows.every(row => valuesClinicallyEquivalent(row.prepared.value, first.prepared.value, first.prepared.concept))) continue;
+      numeric.push({ esame:first.prepared.exam, codice:first.prepared.catalogCode,
+        valore:String(first.raw.value), unita:String(first.raw.unit),
+        min:String(first.raw.ref_min || ""), max:String(first.raw.ref_max || ""),
+        unita_intervallo:String(first.raw.ref_unit || first.raw.unit || "") });
+    }
+    if (!numeric.length && !fixed.length) return "";
+    return JSON.stringify({formato:"SEGRETARIO_MMG_REFERTO_V1",data_referto:date,numerici:numeric,
+      complessi:fixed.map(item=>({esame:item.exam,codice:item.catalogCode,tipo:item.complexKind,testo:item.text}))},null,2);
+  }
+
+  function parsePrescribedTransferText(text) {
+    const source = String(text || "").trim();
+    if (!source.startsWith("{") || !source.includes('"SEGRETARIO_MMG_REFERTO_V1"')) return null;
+    let payload;
+    try { payload=JSON.parse(source); } catch {throw new Error("Blocco di trasferimento incompleto: copialo nuovamente per intero.");}
+    if (payload.formato !== "SEGRETARIO_MMG_REFERTO_V1") return null;
+    if (!Array.isArray(payload.numerici) || !Array.isArray(payload.complessi) || payload.numerici.length+payload.complessi.length>500) throw new Error("Blocco di trasferimento non valido.");
+    const reportDate=normalizeDateValue(payload.data_referto || "");
+    if(payload.data_referto && !reportDate) throw new Error("Data del blocco di trasferimento non valida.");
+    const context=buildUnprescribedDecisionContext(payload.numerici.map(row=>row.esame).join("\n"));
+    const uncertain=[],numeric=[],complex=[];
+    for (const row of payload.numerici) {
+      const entry=findCatalogEntryByCode(row.codice);
+      if (!entry || entry.name !== row.esame || typeof row.valore!=="string" || typeof row.unita!=="string") throw new Error("Associazione esame/codice del blocco non valida. Ricopia il blocco originale.");
+      const raw={exam:row.esame,raw_label:row.esame,value:row.valore,unit:row.unita,
+        ref_min:row.min,ref_max:row.max,ref_unit:row.unita_intervallo};
+      const prepared=prepareUnprescribedNumericCandidate(raw,reportDate,context);
+      if (!prepared.success || prepared.item.catalogCode!==row.codice) throw new Error("Valore, unita o associazione del blocco non validabili: verifica il referto originale.");
+      numeric.push(prepared.item);
+    }
+    for (const row of payload.complessi) {
+      const entry=getFixedComplexCatalogEntry(row.tipo);
+      if (!entry || entry.code!==row.codice || entry.name!==row.esame || typeof row.testo!=="string" || !transferComplexSourceSupported(row.tipo,row.testo)) throw new Error("Referto complesso del blocco non validabile.");
+      if (!complex.some(item=>item.catalogCode===entry.code)) complex.push({exam:entry.name,catalogCode:entry.code,catalogEntry:entry,
+        complexKind:row.tipo,reportDate,text:row.testo,source:"trasferimento-locale"});
+    }
+    if (!reportDate) uncertain.push({text:"Data del referto",reason:"Data non presente nel blocco: controlla prima di inserire."});
+    const deduped=dedupeUnprescribedNumeric(numeric,uncertain);
+    return {layout:"TRASFERIMENTO_LOCALE",reportDate,numeric:deduped,complex,uncertain,
+      stats:{rawResults:payload.numerici.length,numeric:deduped.length,complex:complex.length,qwenUsed:false,qwenResidualUsed:false,qwenResidualEvidence:0,qwenResidualChars:0}};
+  }
+
+  function renderPrescribedTransferBlock(transferText) {
+    if (!transferText) return "";
+    return `<div class="row warning"><b>Da inserire senza prescrizioni</b>
+      <span class="small">Copia questo blocco. Apri Registrazione esiti → Inserimento senza prescrizioni, scegli Referto non prescritto e incollalo nel campo del referto. Controlla l'anteprima prima di inserire.</span>
+      <textarea data-transfer-text readonly aria-label="Blocco da copiare per inserimento senza prescrizioni" style="width:100%;box-sizing:border-box;height:150px;margin-top:8px">${escapeHtml(transferText)}</textarea>
+      <button type="button" data-transfer-copy>Copia blocco</button><span class="small" data-transfer-status role="status"></span></div>`;
+  }
+
+  async function copyPrescribedTransferBlock(field) {
+    const text=String(field?.value || "");
+    if (!text) return false;
+    try { await navigator.clipboard.writeText(text); return true; } catch {}
+    try { field.focus();field.select();return document.execCommand("copy"); } catch {return false;}
+  }
+
   async function extractUnprescribedFromReport(reportText, progressCallback = null) {
     await ensureLabCatalog();
     if (!labCatalog.length) throw new Error("Catalogo laboratorio locale non disponibile.");
+    const transferred=parsePrescribedTransferText(reportText);
+    if (transferred) return transferred;
 
     const layout = detectKnownLabLayout(reportText);
     const explicitDate = parseExplicitReportDateText(reportText);
@@ -14447,6 +14571,18 @@ button:disabled {
   const fileInput = shadow.getElementById("fileInput");
   const fileStatus = shadow.getElementById("fileStatus");
   const resultsBox = shadow.getElementById("results");
+  resultsBox.addEventListener("click",async event=>{
+    const button=event.target.closest?.("[data-transfer-copy]");
+    if (!button || !resultsBox.contains(button) || isBusy) return;
+    const block=button.closest(".row");
+    const field=block.querySelector("[data-transfer-text]");
+    const status=block.querySelector("[data-transfer-status]");
+    button.disabled=true;
+    try { status.textContent=await copyPrescribedTransferBlock(field)
+      ? "Blocco copiato. Incollalo nella modalita Referto non prescritto."
+      : "Copia non riuscita: seleziona il blocco e premi Ctrl+C."; }
+    finally {button.disabled=false;}
+  });
   const contentBox = shadow.getElementById("content");
   const modeChooser = shadow.getElementById("modeChooser");
   const workflowMain = shadow.getElementById("workflowMain");
@@ -15463,7 +15599,7 @@ button:disabled {
       }
 
       lastAnalyzedText = text;
-      resultsBox.innerHTML = html.join("");
+      resultsBox.innerHTML = html.join("") + renderPrescribedTransferBlock(buildPrescribedTransferText(extraction,text));
 
     } catch (error) {
       invalidate();
@@ -17337,12 +17473,14 @@ button:disabled {
     return {
       presentInReportAbsentEumed: dedupeNamed(presentInReportAbsentEumed),
       eumedNotFound: dedupeNamed(eumedNotFound),
-      ambiguousItems
+      ambiguousItems,
+      transferText: buildPrescribedTransferText(extraction,reportText)
     };
   }
 
   function renderEumedAudit(audit) {
     const blocks = [];
+    if (audit.transferText) blocks.push(renderPrescribedTransferBlock(audit.transferText));
 
     if (audit.presentInReportAbsentEumed.length) {
       blocks.push(`
@@ -17436,13 +17574,19 @@ button:disabled {
         getEmptyEumedExams();
 
       if (!targetExams.length) {
+        // Read-only analysis: offer a handoff even when there are no empty
+        // prescription rows. This path never invokes a writer.
+        resultsBox.innerHTML='<div class="summary">Nessuna riga vuota in Eumed. Analisi del referto per preparare il blocco da copiare...</div>';
+        const analysis=await extractUnprescribedFromReport(text);
+        const transferText=buildPrescribedTransferText({reportDate:analysis.reportDate,
+          recognizedNotInGrid:analysis.numeric.map(item=>({...item,value:item.originalValue || item.value,unit:item.originalUnit || item.unit}))},text);
         resultsBox.innerHTML =
           `<div class="summary">
             <b>INSERIMENTO AUTOMATICO</b><br>
             Nessun accertamento vuoto da compilare in Eumed.
             <br><br>
             <b>Nessun Salva generale è stato premuto.</b>
-          </div>`;
+          </div>` + renderPrescribedTransferBlock(transferText);
         return;
       }
 

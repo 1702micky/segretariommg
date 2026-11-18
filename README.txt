@@ -1,3 +1,10 @@
+Segretario MMG v0.16.16
+
+- Referto gia prescritto: blocco copiabile per esami riconosciuti e senza riga Eumed.
+- Incolla in Referto non prescritto: rivalidazione locale senza IA, con data, valori, unita, intervalli e complessi conservati.
+- Nessuna scrittura aggiuntiva automatica; dati esclusi dalla diagnostica.
+- Emocromo Synlab separato dalla successiva VES si-prefissata; intervalli tra parentesi quadre conservati.
+
 Segretario MMG v0.16.15
 
 - Home: versione installata, confronto GitHub, data verifica e controllo manuale immediato.
