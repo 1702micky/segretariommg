@@ -946,3 +946,16 @@ test('prescription options ignore mounted offscreen popup entries', () => {
   const options = context.getPrescriptionCatalogOptions();
   assert.equal(options.length, 1); assert.equal(options[0], visible);
 });
+
+test('PDF geometry reconstructs unordered columns without joining adjacent rows', () => {
+  const c=load(['textContentToLines']);
+  const item=(str,x,y,width=40)=>({str,width,transform:[1,0,0,10,x,y]});
+  const result=c.textContentToLines({items:[item('mg/dl',250,100),item('HDL',10,100),item('AST',10,80),item('52',180,100),item('21',180,80),item('U/l',250,80)]});
+  assert.equal(result,'HDL\t52\tmg/dl\nAST\t21\tU/l');
+});
+
+test('AI context preserves specimen following a tabular measurement without adjacent results', () => {
+ const c=load(['normalizeExamName','buildTargetedReportContext'],{targetConceptTerms:()=>['CK'],getLongReportKind:()=>''});
+ const result=c.buildTargetedReportContext('CK\t123\tU/l\nMetodo: enzimatico\nMateriale: SIERO\nCreatinina urinaria\t2\tg/l',['CK']);
+ assert.match(result,/Materiale: SIERO/);assert.doesNotMatch(result,/Creatinina/);
+});

@@ -1,3 +1,6 @@
-Versione 0.16.17: corretto un falso conflitto nella selezione catalogo quando il menu cita altri codici nelle note Incluso o Non associabile. I riferimenti amministrativi sono ignorati, mentre un codice proprio differente continua a essere rifiutato. Anche i controlli sulle righe ignorano quei riferimenti.
+Segretario MMG 0.16.18
 
-Alias Emogruppo per AB0/Rh; anti-HBc anche isolato instradato al reflex HBV. Le richieste HBV accorpate restano tutte visibili in anteprima, con le condizioni di inclusione IgM indicate dal catalogo. HBsAg e anti-HBs isolati distinti; Treponema sierico distinto da liquor. Diagnostica con conteggio dei codici amministrativi ignorati, senza registrarne il contenuto. 90 test superati.
+- Ricostruzione delle righe PDF secondo le coordinate, con colonne separate per il parser e IA.
+- Contesto IA conserva metodo e materiale biologico della misura.
+- Supporto rapporto Albumina/Creatinina e unita mg/g crea; indicatori di anomalia separati dal nome.
+- Riduzione del ricorso IA per PDF tabellari; tempi reali da confermare sul PC utente.

@@ -3,7 +3,7 @@
 
   // ============================================================
   // SEGRETARIO MMG
-  // Versione 0.16.17
+  // Versione 0.16.18
   //
   // - Estrazione con Qwen 3.5 4B locale
   // - Comunicazione diretta Ollama via service worker Chrome
@@ -408,6 +408,7 @@
     if (
       n.includes("MICROALBUMINURIA") ||
       n.includes("RAPPORTO ALB CRE") ||
+      /^ALBUMINA[ /]+CREATININA$/.test(n) ||
       n.includes("RAPPORTO ALBUMINA CREATININA") ||
       n.includes("RAPP ALBUMINA CREATININA") ||
       /RAPP(?:ORTO)?\s+U\s+ALBUMINA\s+U\s+CREATININA/.test(n) ||
@@ -5977,8 +5978,8 @@ ${numberedReportText}
   }
 
   function isLikelyLabUnitToken(text) {
-    const u = normalizeUnit(text);
-    return /^(?:mg\/dl|mg\/l|mmol\/l|umol\/l|nmol\/l|ng\/ml|ng\/l|pg\/ml|ug\/l|ug\/dl|u\/l|ui\/l|meq\/l|%|g\/dl|g\/l|10\^?[369]\/l|x10\^?[369]\/l|fl|pg)$/.test(u);
+    const u = normalizeUnit(text).replace(/\s*crea(?:tinina)?$/i, "");
+    return /^(?:mg\/g|mg\/dl|mg\/l|mmol\/l|umol\/l|nmol\/l|ng\/ml|ng\/l|pg\/ml|ug\/l|ug\/dl|u\/l|ui\/l|meq\/l|%|g\/dl|g\/l|10\^?[369]\/l|x10\^?[369]\/l|fl|pg)$/.test(u);
   }
 
   function isUrineComponentLabel(text) {
@@ -6059,6 +6060,7 @@ ${numberedReportText}
 
       const label = cells
         .slice(0, valueIndex)
+        .filter(cell => !/^[*+!\u2191\u2193HL]+$/.test(cell))
         .join(" ")
         .replace(/^[*+!↑↓HhLl]+\s*/, "")
         .trim();
@@ -6082,7 +6084,7 @@ ${numberedReportText}
       if (!concept && !(catalog && catalog.score >= 900)) continue;
 
       const value = cells[valueIndex];
-      const unit = normalizeOcrDisplayUnit(cells[unitIndex]);
+      const unit = normalizeOcrDisplayUnit(cells[unitIndex].replace(/\s+crea(?:t(?:inina)?)?\.?$/i, ""));
       const tail = cells.slice(unitIndex + 1).join(" ");
       const range = parseBilateralRangeFromTail(tail);
 
@@ -8617,6 +8619,10 @@ ${sourceText}
           // già sulla stessa riga. Non includere risultati delle righe vicine.
           before = 0;
           after = 0;
+          for (let j=i+1; j<Math.min(lines.length,i+4); j++) {
+            if (/^\s*(?:Metodo|Materiale)\s*:/i.test(lines[j])) selected.add(j);
+            else break;
+          }
         }
 
         for (
@@ -9874,31 +9880,25 @@ ${sourceText}
 
     if (!items.length) return "";
 
-    const lines = [];
-    let current = [];
-    let currentY = null;
-
-    for (const item of items) {
-      const y = Number(item?.transform?.[5] ?? 0);
-
-      if (currentY === null) currentY = y;
-
-      // PDF.js restituisce in genere gli item già in ordine di lettura.
-      // Un cambio verticale apprezzabile indica una nuova riga.
-      if (Math.abs(y - currentY) > 2.5 && current.length) {
-        lines.push(current.join(" ").replace(/\s+/g, " ").trim());
-        current = [];
-        currentY = y;
+    // Content-stream order is not reading order: group baselines first.
+    const rows = [];
+    for (const item of items.slice().sort((a,b) => b.transform[5]-a.transform[5])) {
+      const y = Number(item.transform[5]);
+      let row = rows.find(r => Math.abs(r.y-y) <= 2.5);
+      if (!row) { row = {y, items:[]}; rows.push(row); }
+      row.items.push(item);
+    }
+    return rows.map(row => {
+      const ordered = row.items.sort((a,b) => a.transform[4]-b.transform[4]);
+      let text = '', right = null;
+      for (const item of ordered) {
+        const x = Number(item.transform[4]);
+        const gap = right === null ? 0 : x-right;
+        text += (right === null ? '' : gap > 12 ? '\t' : ' ') + item.str.trim();
+        right = x + Number(item.width || 0);
       }
-
-      current.push(item.str);
-    }
-
-    if (current.length) {
-      lines.push(current.join(" ").replace(/\s+/g, " ").trim());
-    }
-
-    return lines.filter(Boolean).join("\n");
+      return text.trim();
+    }).filter(Boolean).join('\n');
   }
 
   async function canvasToJpegBase64(canvas, quality = 0.92) {
@@ -10528,11 +10528,11 @@ ${sourceText}
 
     // Creatinina urinaria: il catalogo distingue 24h e voce per calcolo ACR.
     // Se il referto dice solo "U-creatinina" non inventiamo quale delle due.
-    if (n.includes("CREATININA") && /ACR|ALBUMIN.?CREAT/.test(n)) return exact("90.16.17_7");
+    if (n.includes("CREATININA") && /ACR|ALBUMIN.?CREAT/.test(n)) return exact("90.16.18_7");
     if (concept === "CREATININE_URINE" || (concept === "CREATININE" && detectSpecimen(query) === "URINE")) {
-      if (/24 ?H|24 ORE|GIORNALIER/.test(n)) return exact("90.16.17_3");
-      if (/ACR|ALBUMIN.?CREAT|RAPPORTO/.test(n)) return exact("90.16.17_7");
-      if (context?.urineCreatinineForAcr && !/MINZ|DROGHE|PERITONE|DIALISI/.test(n)) return exact("90.16.17_7");
+      if (/24 ?H|24 ORE|GIORNALIER/.test(n)) return exact("90.16.18_3");
+      if (/ACR|ALBUMIN.?CREAT|RAPPORTO/.test(n)) return exact("90.16.18_7");
+      if (context?.urineCreatinineForAcr && !/MINZ|DROGHE|PERITONE|DIALISI/.test(n)) return exact("90.16.18_7");
       return { blocked: true, reason: "Creatinina urinaria senza tipologia prescrivibile univoca" };
     }
 
