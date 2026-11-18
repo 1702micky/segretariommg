@@ -1,6 +1,6 @@
-Segretario MMG 0.16.18
+Segretario MMG 0.16.19
 
-- Ricostruzione delle righe PDF secondo le coordinate, con colonne separate per il parser e IA.
-- Contesto IA conserva metodo e materiale biologico della misura.
-- Supporto rapporto Albumina/Creatinina e unita mg/g crea; indicatori di anomalia separati dal nome.
-- Riduzione del ricorso IA per PDF tabellari; tempi reali da confermare sul PC utente.
+- Riconoscimento della matrice [U], [S] e [P] nelle denominazioni Eumed.
+- Creatinina urinaria per calcolo ACR distinta dal rapporto albumina/creatinina.
+- Corretto il falso rifiuto per matrice incompatibile, senza accettare scambi tra siero e urine.
+- 93 test superati.

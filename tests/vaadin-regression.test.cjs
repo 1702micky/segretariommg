@@ -959,3 +959,15 @@ test('AI context preserves specimen following a tabular measurement without adja
  const result=c.buildTargetedReportContext('CK\t123\tU/l\nMetodo: enzimatico\nMateriale: SIERO\nCreatinina urinaria\t2\tg/l',['CK']);
  assert.match(result,/Materiale: SIERO/);assert.doesNotMatch(result,/Creatinina/);
 });
+
+test('bracketed specimens distinguish urinary creatinine used for ACR from the ratio', () => {
+ const c=load(['normalizeExamName','detectSpecimen','specimenCompatible','getExamConcept']);
+ assert.equal(c.detectSpecimen('CREATININA [U] per calcolo ACR'),'URINE');
+ assert.equal(c.detectSpecimen('CREATININA [S] con eventuale eGFR'),'SERUM');
+ assert.equal(c.getExamConcept('CREATININA [U] per calcolo ACR'),'CREATININE_URINE');
+ assert.equal(c.getExamConcept('Creatinina Urinaria'),'CREATININE_URINE');
+ assert.equal(c.getExamConcept('Rapporto albumina creatinina ACR'),'ACR');
+ assert.equal(c.specimenCompatible('Creatinina Urinaria','CREATININA [U] per calcolo ACR'),true);
+ assert.equal(c.specimenCompatible('Creatinina Urinaria','CREATININA [S]'),false);
+ assert.equal(c.detectSpecimen('Creatinchinasi 123 U/l'),'');
+});

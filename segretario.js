@@ -3,7 +3,7 @@
 
   // ============================================================
   // SEGRETARIO MMG
-  // Versione 0.16.18
+  // Versione 0.16.19
   //
   // - Estrazione con Qwen 3.5 4B locale
   // - Comunicazione diretta Ollama via service worker Chrome
@@ -403,6 +403,10 @@
   function getExamConcept(text) {
     const n = normalizeExamName(text);
 
+    // Creatinine used to calculate ACR is a separate concentration result.
+    if (/\bCREATININA\b/.test(n) && !/ALBUMIN|RAPPORTO|CLEARANCE/.test(n) &&
+        (/\[\s*U\s*\]/i.test(String(text)) || /^U\b|URIN|\bU 24H\b/.test(n))) return "CREATININE_URINE";
+
     // Rapporto albumina/creatinina deve essere riconosciuto prima della
     // creatinina urinaria generica.
     if (
@@ -482,7 +486,8 @@
 
     if (n.includes("CREATININA") && !n.includes("CLEARANCE")) {
       if (
-        /^U\b/.test(n) ||
+        /\[\s*U\s*\]/i.test(String(text)) ||
+      /^U\b/.test(n) ||
         n.includes("URIN") ||
         /\bU 24H\b/.test(n)
       ) {
@@ -1601,6 +1606,8 @@
 
   function detectSpecimen(text) {
     const n = normalizeExamName(text);
+    if (/\[\s*U\s*\]/i.test(String(text))) return "URINE";
+    if (/\[\s*(?:S|P)\s*\]/i.test(String(text))) return "SERUM";
 
     if (
       /^U\b/.test(n) ||
@@ -1612,6 +1619,7 @@
     }
 
     if (
+      /\[\s*(?:S|P)\s*\]/i.test(String(text)) ||
       /^S\b/.test(n) ||
       /^SI\b/.test(n) ||
       /^P\b/.test(n) ||
@@ -10528,11 +10536,11 @@ ${sourceText}
 
     // Creatinina urinaria: il catalogo distingue 24h e voce per calcolo ACR.
     // Se il referto dice solo "U-creatinina" non inventiamo quale delle due.
-    if (n.includes("CREATININA") && /ACR|ALBUMIN.?CREAT/.test(n)) return exact("90.16.18_7");
+    if (n.includes("CREATININA") && /ACR|ALBUMIN.?CREAT/.test(n)) return exact("90.16.19_7");
     if (concept === "CREATININE_URINE" || (concept === "CREATININE" && detectSpecimen(query) === "URINE")) {
-      if (/24 ?H|24 ORE|GIORNALIER/.test(n)) return exact("90.16.18_3");
-      if (/ACR|ALBUMIN.?CREAT|RAPPORTO/.test(n)) return exact("90.16.18_7");
-      if (context?.urineCreatinineForAcr && !/MINZ|DROGHE|PERITONE|DIALISI/.test(n)) return exact("90.16.18_7");
+      if (/24 ?H|24 ORE|GIORNALIER/.test(n)) return exact("90.16.19_3");
+      if (/ACR|ALBUMIN.?CREAT|RAPPORTO/.test(n)) return exact("90.16.19_7");
+      if (context?.urineCreatinineForAcr && !/MINZ|DROGHE|PERITONE|DIALISI/.test(n)) return exact("90.16.19_7");
       return { blocked: true, reason: "Creatinina urinaria senza tipologia prescrivibile univoca" };
     }
 
