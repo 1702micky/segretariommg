@@ -971,3 +971,32 @@ test('bracketed specimens distinguish urinary creatinine used for ACR from the r
  assert.equal(c.specimenCompatible('Creatinina Urinaria','CREATININA [S]'),false);
  assert.equal(c.detectSpecimen('Creatinchinasi 123 U/l'),'');
 });
+
+test('signature timestamp before signature label is a report date, not birth or acceptance',()=>{
+ const c=load(['isValidCalendarDateParts','normalizeDateValue','parseExplicitReportDateText']);
+ assert.equal(c.parseExplicitReportDateText('Data nascita: 01/01/1960\nData Acc.: 10/11/2026\n12-11-2026 17.25\tSN=123 Referto firmato da: ESEMPIO').date,'2026-11-12');
+ assert.equal(c.parseExplicitReportDateText('Data nascita: 01/01/1960\nData Acc.: 10/11/2026').date,'');
+});
+test('single explicit reference limits preserve the missing bound and reject multiple bands',()=>{
+ const c=load(['parseBilateralRangeFromTail','shouldSuppressAutomaticRange','convertRange'],{PREFERRED_UNITS:{},unitsCompatible:()=>true,convertMeasurement:(_c,v,u)=>({ok:true,value:v,unit:u})});
+ assert.equal(c.parseBilateralRangeFromTail('< 40').max,'40');
+ assert.equal(c.parseBilateralRangeFromTail('< 40').min,'');
+ assert.equal(c.parseBilateralRangeFromTail('> 55 Nessun rischio 35 - 55 Rischio moderato'),null);
+ assert.equal(c.convertRange('AST','','40','U/L','U/L').max,'40');
+ assert.equal(c.convertRange('AST','','40','U/L','U/L').min,'');
+ assert.equal(c.convertRange('AST','','','U/L','U/L').available,false);
+});
+
+
+test('residual AI schema requests report date and exact date evidence',()=>{
+ const c=load(['buildResidualResolverSchema']);const schema=c.buildResidualResolverSchema(['T1']);
+ assert.equal(schema.properties.d.type,'string');assert.equal(schema.properties.de.type,'string');
+ assert.ok(schema.required.includes('d'));assert.ok(schema.required.includes('de'));
+});
+
+test('ACR unit abbreviation crea is normalized without accepting serum creatinine ratios',()=>{
+ const c=load(['normalizeUnit','normalizedUnitLoose','unitCompatibleWithConcept']);
+ assert.equal(c.normalizeUnit('mg/g crea'),'mg/g');
+ assert.equal(c.unitCompatibleWithConcept('ACR','mg/g crea'),true);
+ assert.equal(c.unitCompatibleWithConcept('CREATININE','mg/g crea'),false);
+});

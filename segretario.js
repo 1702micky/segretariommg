@@ -3,7 +3,7 @@
 
   // ============================================================
   // SEGRETARIO MMG
-  // Versione 0.16.19
+  // Versione 0.16.20
   //
   // - Estrazione con Qwen 3.5 4B locale
   // - Comunicazione diretta Ollama via service worker Chrome
@@ -4060,7 +4060,8 @@
       .replace(/^ui\/i$/i, "ui/l")
       .replace("litre", "l")
       .replace("liter", "l")
-      .replace(/\.$/, "");
+      .replace(/\.$/, "")
+      .replace(/^mg\/gcrea(?:t(?:inina)?)?$/, "mg/g");
   }
 
   function convertMeasurement(concept, value, unit) {
@@ -4415,7 +4416,7 @@
 
     // Molti referti riportano l'unità una sola volta accanto al risultato.
     // In quel caso Min/Max sono nella stessa unità del risultato.
-    if (min && max && !unit) unit = resultUnit;
+    if ((min || max) && !unit) unit = resultUnit;
 
     return { min, max, unit };
   }
@@ -4445,7 +4446,7 @@
     const maxText = String(refMax ?? "").trim();
 
     // Compiliamo Min/Max solo se entrambi sono presenti.
-    if (!minText || !maxText) {
+    if (!minText && !maxText) {
       return {
         ok: true,
         available: false,
@@ -4454,8 +4455,8 @@
     }
 
     if (
-      !/^[+-]?\d+(?:[.,]\d+)?$/.test(minText) ||
-      !/^[+-]?\d+(?:[.,]\d+)?$/.test(maxText)
+      (minText && !/^[+-]?\d+(?:[.,]\d+)?$/.test(minText)) ||
+      (maxText && !/^[+-]?\d+(?:[.,]\d+)?$/.test(maxText))
     ) {
       return {
         ok: true,
@@ -4479,8 +4480,8 @@
       }
     }
 
-    const minConverted = convertMeasurement(concept, minText, effectiveUnit);
-    const maxConverted = convertMeasurement(concept, maxText, effectiveUnit);
+    const minConverted = minText ? convertMeasurement(concept, minText, effectiveUnit) : {ok:true,value:"",unit:effectiveUnit,converted:false};
+    const maxConverted = maxText ? convertMeasurement(concept, maxText, effectiveUnit) : {ok:true,value:"",unit:effectiveUnit,converted:false};
 
     if (!minConverted.ok || !maxConverted.ok) {
       return {
@@ -5085,8 +5086,8 @@ NON duplicare i suoi componenti in r.
 RISULTATI SINGOLI:
 - soltanto risultato corrente numerico semplice;
 - non confondere risultato con range, data, età o valore storico;
-- ref_min/ref_max solo per range bilaterale chiaro;
-- per <x, >x o range condizionali lascia min/max vuoti;
+- ref_min/ref_max per intervallo bilaterale chiaro; per un unico limite <x o >x compila solo max o min, lasciando vuoto l altro estremo;
+- per fasce multiple o range condizionali lascia min/max vuoti;
 - conserva fedelmente valore e unità originali;
 - non inserire POSITIVO/NEGATIVO/ASSENTE/PRESENTE come risultato numerico;
 - se incerto usa u invece di indovinare.
@@ -5321,6 +5322,8 @@ ${numberedReportText}
     return {
       type: "object",
       properties: {
+        d: {type:"string"},
+        de: {type:"string"},
         r: {
           type: "array",
           items: {
@@ -5364,7 +5367,7 @@ ${numberedReportText}
           }
         }
       },
-      required: ["r", "l", "u"]
+      required: ["d", "de", "r", "l", "u"]
     };
   }
 
@@ -5405,6 +5408,7 @@ REGOLE AGGIUNTIVE - RESOLVER EUMED VINCOLATO:
 - Anche l'array u è VINCOLATO agli ID T1..Tn: non inserire etichette libere del referto.
 - Usa u solo quando esiste evidenza reale per quel target ma non è possibile validarlo; se il target è semplicemente assente dal referto, NON inserirlo in u.
 - Per referti complessi usa l'array l con ID target e intervallo di righe.
+- Un target complesso richiede una sua etichetta o un gruppo di componenti realmente presente: un intervallo di righe di altri esami NON giustifica TSH, PSA o altri target assenti.
 - Non mappare componenti interni di un referto complesso su altri target se
   rappresentano soltanto sottoparametri della prestazione principale.
 - Matrice biologica, REFLEX/non REFLEX, diretto/indiretto e metodo restano
@@ -5439,6 +5443,9 @@ REGOLE AGGIUNTIVE - RESOLVER EUMED VINCOLATO:
     const userPrompt = `
 TARGET EUMED RESIDUI - scegli SOLO tramite ID:
 ${targetList}
+
+DATA REFERTO: d = data ISO YYYY-MM-DD, de = riga testuale INTERA contenente sia la data sia la firma/refertazione. Non omettere data e ora dalla citazione.
+Se non presente, d e de vuoti. Non usare nascita, accettazione o revisione documento.
 
 FORMATO r (risultati numerici):
 [ID_TARGET, valore, unità, ref_min, ref_max, ref_unit, raw_label_originale]
@@ -5545,8 +5552,8 @@ ${numberedReportText}
     }
 
     return {
-      report_date: "",
-      report_date_evidence: "",
+      report_date: /\d{1,2}[/.\-]\d{1,2}[/.\-]\d{4}/.test(String(parsed.de || "")) && normalizeExamName(reportText).includes(normalizeExamName(parsed.de)) ? String(parsed.d || "") : "",
+      report_date_evidence: String(parsed.de || ""),
       results,
       long_reports,
       uncertain
@@ -5749,11 +5756,16 @@ ${numberedReportText}
 
   function parseBilateralRangeFromTail(text) {
     const s = String(text ?? "").trim().replace(/^\[|\]$/g, "");
+    if (/rischio|diminuzione|normale|gravid|\beta\b/i.test(s)) return null;
     const m = s.match(
       /(?:^|\s)([+-]?\d+(?:[.,]\d+)?)\s*[-–]\s*([+-]?\d+(?:[.,]\d+)?)(?:\s|$)/
     );
 
-    if (!m) return null;
+    if (!m) {
+      const one=s.match(/^([<>\u2264\u2265])\s*([+-]?\d+(?:[.,]\d+)?)$/);
+      if (!one) return null;
+      return {min:/[>\u2265]/.test(one[1])?one[2]:'',max:/[<\u2264]/.test(one[1])?one[2]:''};
+    }
 
     return {
       min: m[1],
@@ -6954,6 +6966,15 @@ ${numberedReportText}
       matches.push({ date: iso, evidence: m[0].replace(/\s+/g," ").trim() });
     }
 
+    // A signature timestamp can precede the label in geometrically reconstructed PDFs.
+    for (const line of text.split(/\r?\n/)) {
+      if (!/Referto\s+firmato|Firmato\s+(?:digitalmente|da)|Data\s+firma/i.test(line)) continue;
+      const stamp=line.match(/^\s*(\d{1,2}[/.\-]\d{1,2}[/.\-]\d{4})\s+\d{1,2}[:.]\d{2}\b/);
+      if (!stamp) continue;
+      const [d,mo,y]=stamp[1].split(/[/.\-]/).map(Number);
+      const iso=String(y)+'-'+String(mo).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+      if (normalizeDateValue(iso)) matches.push({date:iso,evidence:line.trim()});
+    }
     const unique = [...new Set(matches.map(x => x.date))];
     if (unique.length === 1) {
       return matches.find(x => x.date === unique[0]);
@@ -8598,6 +8619,12 @@ ${sourceText}
         .split("\n");
 
     const selected = new Set();
+    // Keep explicit report/signature date evidence for the AI fallback.
+    lines.forEach((line,i) => {
+      if (/data\s+(?:del\s+)?referto|referto\s+(?:del|firmato)|data\s+(?:firma|validazione)|firmato\s+(?:da|il|digitalmente)/i.test(line)) {
+        selected.add(i);
+      }
+    });
 
     const lineHasMeasurement = line =>
       /\d/.test(String(line || "")) &&
@@ -10536,11 +10563,11 @@ ${sourceText}
 
     // Creatinina urinaria: il catalogo distingue 24h e voce per calcolo ACR.
     // Se il referto dice solo "U-creatinina" non inventiamo quale delle due.
-    if (n.includes("CREATININA") && /ACR|ALBUMIN.?CREAT/.test(n)) return exact("90.16.19_7");
+    if (n.includes("CREATININA") && /ACR|ALBUMIN.?CREAT/.test(n)) return exact("90.16.20_7");
     if (concept === "CREATININE_URINE" || (concept === "CREATININE" && detectSpecimen(query) === "URINE")) {
-      if (/24 ?H|24 ORE|GIORNALIER/.test(n)) return exact("90.16.19_3");
-      if (/ACR|ALBUMIN.?CREAT|RAPPORTO/.test(n)) return exact("90.16.19_7");
-      if (context?.urineCreatinineForAcr && !/MINZ|DROGHE|PERITONE|DIALISI/.test(n)) return exact("90.16.19_7");
+      if (/24 ?H|24 ORE|GIORNALIER/.test(n)) return exact("90.16.20_3");
+      if (/ACR|ALBUMIN.?CREAT|RAPPORTO/.test(n)) return exact("90.16.20_7");
+      if (context?.urineCreatinineForAcr && !/MINZ|DROGHE|PERITONE|DIALISI/.test(n)) return exact("90.16.20_7");
       return { blocked: true, reason: "Creatinina urinaria senza tipologia prescrivibile univoca" };
     }
 
