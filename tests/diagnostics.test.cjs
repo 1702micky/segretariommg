@@ -48,12 +48,14 @@ test('events are bounded and retain each workflow identity', () => {
 test('catalog diagnostics retain anonymous stages and drop field text, exam codes and errors', () => {
   const c = context();
   c.recordDiagnosticEvent('catalogo_selezione', {rowIndex: 2, attempt: 1, queryIndex: 1, step: 3,
+    ignoredReferenceCodesCount: 2,
     targetIsCode: true, optionsCount: 1, matchingOptions: 1, fieldMatched: true, fieldIsCode: false,
     popupVisible: false, success: true, pageHidden: false, value: 'PRIVATE FIELD',
     exam: 'PRIVATE EXAM', catalogCode: 'PRIVATE CODE', error: 'PRIVATE ERROR'});
   const events = vm.runInContext('diagnosticEvents', c);
   assert.equal(events[0].step, 3); assert.equal(events[0].fieldMatched, true);
   assert.equal(events[0].targetIsCode, true); assert.equal(events[0].rowIndex, 2);
+  assert.equal(events[0].ignoredReferenceCodesCount,2);
   assert.doesNotMatch(JSON.stringify(events), /PRIVATE/);
   const report = c.createDiagnosticReport('test', 'prescription_list', 'local', events);
   assert.match(report, /step: 1 filtro/); assert.match(report, /nuova riga verificata/);

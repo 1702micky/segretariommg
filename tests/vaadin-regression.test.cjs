@@ -30,7 +30,7 @@ function gridContext() {
     querySelectorAll: selector => selector.includes('thead') ? headers : state.rows,
   };
   const context = load(['normalizeExamName', 'prescriptionRowText', 'normalizePrescriptionRowText', 'getPrescriptionListRowCount',
-    'prescriptionRowMatchesItem', 'isValidCalendarDateParts', 'normalizeDateValue', 'prescriptionListRowDate', 'getPrescriptionRowEvidence',
+    'sanitizeCreationCatalogAlias','prescriptionRowMatchesItem', 'isValidCalendarDateParts', 'normalizeDateValue', 'prescriptionListRowDate', 'getPrescriptionRowEvidence',
     'getPrescriptionWriteSnapshot', 'findNewPrescriptionRow', 'waitForPrescriptionRowAdded',
     'writePrescriptionListItem'], { getPrescriptionListGrid: () => grid });
   return { state, context };
@@ -189,7 +189,7 @@ test('real writer retains pending state after a click and never clicks again on 
   const state = { total: '10', rows: [] };
   const form = { accertamento: {}, exemption: {}, priority: { value: '' }, confirm: {} };
   const context = load(['normalizeExamName', 'prescriptionRowText', 'normalizePrescriptionRowText', 'getPrescriptionListRowCount',
-    'prescriptionRowMatchesItem', 'isValidCalendarDateParts', 'normalizeDateValue', 'prescriptionListRowDate', 'getPrescriptionRowEvidence', 'getPrescriptionWriteSnapshot',
+    'sanitizeCreationCatalogAlias','prescriptionRowMatchesItem', 'isValidCalendarDateParts', 'normalizeDateValue', 'prescriptionListRowDate', 'getPrescriptionRowEvidence', 'getPrescriptionWriteSnapshot',
     'findNewPrescriptionRow', 'waitForPrescriptionRowAdded',
     'waitForPrescriptionListForm', 'writePrescriptionListItemAttempt', 'writePrescriptionListItem'], {
     getPrescriptionListGrid: () => ({
@@ -232,7 +232,7 @@ test('cell boundaries are preserved when row textContent joins the exam to a num
 
 test('prescription synonyms select real catalog entries without confusing glycated albumin', () => {
   const catalog = JSON.parse(fs.readFileSync(path.join(__dirname, '../lab_catalog.json'), 'utf8')).entries;
-  const context = load(['normalizeExamName', 'preferredPrescriptionCatalogEntry'], {
+  const context = load(['normalizeExamName', 'sanitizeCreationCatalogAlias', 'preferredPrescriptionCatalogEntry'], {
     directCatalogCodeFromPrescriptionLabel: () => null,
     findCatalogEntryByCode: code => catalog.find(entry => entry.code === code),
     isMolecularMicrobiologyText: () => false,
@@ -265,6 +265,24 @@ test('the complete reported list resolves through the real resolver and real cat
   assert.equal(result.uncertain.length, 0);
   assert.deepEqual(Array.from(result.resolved, entry => entry.catalogCode),
     ['90.41.8_0', '90.62.2_2', '90.27.1_2', '90.28.1_0', '90.09.2_0', '90.04.5_0', '90.44.6_2']);
+});
+
+test('the seven infectious-screening labels resolve to five distinct catalog entries with visible HBV grouping',()=>{
+  const c=resolverContext();
+  const labels=['Antigene di superficie epat B (HBsAg)','Ac anti Core epat. B (HBcAb tot.)',
+    'Ac anti Core epat. B (HBcAb IgM)','Ac anti HIV','Ac anti epat. C (HCV)','Ac. anti Treponema pall.','Emogruppo'];
+  const result=c.resolvePrescriptionListItems(labels.map(raw_label=>({raw_label})));
+  assert.equal(result.uncertain.length,0,JSON.stringify(result.uncertain));
+  assert.deepEqual(Array.from(result.resolved,x=>x.catalogCode),['91.18.6_0','91.23.F_0','91.19.5_0','91.10.B_2','90.65.3_2']);
+  assert.equal(result.resolved[0].requestedLabels.length,3);assert.match(result.resolved[0].mappingNote,/IgM.*positivi/);
+  assert.equal(c.resolvePrescriptionListItems([{raw_label:'HBsAg'}]).resolved[0].catalogCode,'91.18.5_0');
+  assert.equal(c.resolvePrescriptionListItems([{raw_label:'anti-HBs'}]).resolved[0].catalogCode,'91.18.3_0');
+  assert.equal(c.resolvePrescriptionListItems([{raw_label:'Ac anti Treponema pallidum liquor'}]).resolved[0].catalogCode,'91.10.B_3');
+  for(const raw_label of ['HBcAb IgM','anti-HBc totali','Ac anti Core epat. B','HBc-Ab']){
+    const single=c.resolvePrescriptionListItems([{raw_label}]);
+    assert.equal(single.resolved[0]?.catalogCode,'91.18.6_0',raw_label);
+  }
+  assert.ok(!result.resolved.some(x=>x.catalogCode==='90.65.3_3'));
 });
 
 test('creation scoring cannot confuse glicemia with ipoglicemia', () => {
@@ -301,7 +319,7 @@ function selectionContext({ multiple = false, tabCommits = true, optionsVisible 
   const option = { textContent: '90.27.1_2 -- GLUCOSIO [S]' };
   const form = { accertamento: input, exemption: { focus() {} } };
   const context = load(['normalizeExamName', 'significantTokens', 'filterSelectCandidateScore',
-    'prescriptionRowText', 'normalizePrescriptionRowText', 'prescriptionRowMatchesItem',
+    'prescriptionRowText', 'normalizePrescriptionRowText', 'sanitizeCreationCatalogAlias','prescriptionRowMatchesItem',
     'sanitizeCreationCatalogAlias', 'prescriptionCatalogOptionEvidence', 'readPrescriptionCatalogSelection', 'waitPrescriptionCatalogSelection', 'choosePrescriptionCatalogTarget'], {
     triggerNonPrescribedCatalogFilter: async () => { state.queries++; return true; },
     getPrescriptionCatalogOptions: () => state.popupVisible ? (multiple ? [
@@ -888,6 +906,27 @@ test('a conflicting displayed code is rejected even if the caption matches', asy
   option.textContent='90.27.1_3 -- GLUCOSIO [S]';
   assert.equal((await context.choosePrescriptionCatalogTarget(input,target.catalogCode,target)).success,false);
   assert.equal(state.clicks,0);
+});
+
+test('administrative reference codes do not block the actual suggestion or masquerade as its identifier',async()=>{
+  const {context,state,input,target,option}=selectionContext();
+  option.textContent='GLUCOSIO [S]. Non associabile a 90.27.1_3';
+  assert.equal((await context.choosePrescriptionCatalogTarget(input,target.catalogCode,target)).success,true);
+  assert.equal(state.queries,1);assert.equal(state.clicks,1);
+  assert.ok(state.events.some(e=>e.step===2&&e.codeConflictCount===0&&e.ignoredReferenceCodesCount===1));
+  const wrong=context.prescriptionCatalogOptionEvidence({textContent:'90.27.1_3 -- GLUCOSIO [S]. Non associabile a 90.27.1_2'},target);
+  assert.equal(wrong.codeExact,false);assert.equal(wrong.codeConflict,true);assert.equal(wrong.score,0);
+  assert.equal(context.prescriptionRowMatchesItem(row('90.27.1_3 OTHER. Non associabile a 90.27.1_2'),target),false);
+});
+
+test('the real HIV combined-test caption ignores its Immunoblotting exclusion code',()=>{
+  const c=resolverContext();
+  load(['normalizePrescriptionRowText','prescriptionRowText','sanitizeCreationCatalogAlias','prescriptionRowMatchesItem',
+    'filterSelectCandidateScore','prescriptionCatalogOptionEvidence'],{},c);
+  const entry=c.findCatalogEntryByCode('91.23.F_0');
+  const full=entry.aliases.find(alias=>/Non associabile/.test(alias));
+  const e=c.prescriptionCatalogOptionEvidence({textContent:full},{catalogCode:entry.code,exam:entry.name,catalogEntry:entry});
+  assert.ok(e.score>=7000);assert.equal(e.codeConflict,false);assert.ok(e.ignoredReferenceCodesCount>=1);
 });
 
 test('a caption shortened by Eumed is recognized after clicking the verified exact code', async () => {

@@ -1,3 +1,10 @@
+Segretario MMG v0.16.17
+
+- Selezione catalogo: ignorati i codici citati nelle note Incluso/Non associabile; restano esclusi codici propri diversi.
+- Prescrizione: Emogruppo associato ad AB0/Rh; anti-HBc nella voce HBV reflex come da catalogo.
+- Anteprima con tutte le richieste accorpate e nota sulle condizioni IgM del reflex.
+- HBsAg e anti-HBs isolati distinti; Treponema sierico distinto da liquor.
+
 Segretario MMG v0.16.16
 
 - Referto gia prescritto: blocco copiabile per esami riconosciuti e senza riga Eumed.

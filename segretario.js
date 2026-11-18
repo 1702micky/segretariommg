@@ -3,7 +3,7 @@
 
   // ============================================================
   // SEGRETARIO MMG
-  // Versione 0.16.16
+  // Versione 0.16.17
   //
   // - Estrazione con Qwen 3.5 4B locale
   // - Comunicazione diretta Ollama via service worker Chrome
@@ -10339,7 +10339,7 @@ ${sourceText}
     // Molte aliases CVP contengono istruzioni amministrative che citano ALTRI
     // esami ("Non associabile a...", "Incluso: ..."). Quelle parole non sono
     // sinonimi e non devono influenzare il resolver che CREA una nuova riga.
-    s = s.split(/\.\s*(?:Non associabile|Incluso|Erogabile|Salvo range|Se TSH|Per la valutazione|Nell'ambito)/i)[0];
+    s = s.split(/(?:[.;]\s*|\s+-\s+|\s+)(?:Non associabile|Inclus[oa]|Erogabile|Salvo range|Se TSH|Per la valutazione|Nell'ambito)\b/i)[0];
     return s.trim();
   }
 
@@ -10528,11 +10528,11 @@ ${sourceText}
 
     // Creatinina urinaria: il catalogo distingue 24h e voce per calcolo ACR.
     // Se il referto dice solo "U-creatinina" non inventiamo quale delle due.
-    if (n.includes("CREATININA") && /ACR|ALBUMIN.?CREAT/.test(n)) return exact("90.16.16_7");
+    if (n.includes("CREATININA") && /ACR|ALBUMIN.?CREAT/.test(n)) return exact("90.16.17_7");
     if (concept === "CREATININE_URINE" || (concept === "CREATININE" && detectSpecimen(query) === "URINE")) {
-      if (/24 ?H|24 ORE|GIORNALIER/.test(n)) return exact("90.16.16_3");
-      if (/ACR|ALBUMIN.?CREAT|RAPPORTO/.test(n)) return exact("90.16.16_7");
-      if (context?.urineCreatinineForAcr && !/MINZ|DROGHE|PERITONE|DIALISI/.test(n)) return exact("90.16.16_7");
+      if (/24 ?H|24 ORE|GIORNALIER/.test(n)) return exact("90.16.17_3");
+      if (/ACR|ALBUMIN.?CREAT|RAPPORTO/.test(n)) return exact("90.16.17_7");
+      if (context?.urineCreatinineForAcr && !/MINZ|DROGHE|PERITONE|DIALISI/.test(n)) return exact("90.16.17_7");
       return { blocked: true, reason: "Creatinina urinaria senza tipologia prescrivibile univoca" };
     }
 
@@ -13515,17 +13515,22 @@ Output JSON compatto:
   }
 
   function buildPrescriptionDecisionContext(rawItems) {
-    const labels = (rawItems || []).map(x => String(x?.raw_label || "")).filter(Boolean);
+    const labels = (rawItems || []).map(x => sanitizeCreationCatalogAlias(x?.raw_label || "")).filter(Boolean);
     const joined = labels.join("\n");
     const n = normalizeExamName(joined);
 
-    const hasHbsAg = /\bHBSAG\b/.test(n) || /(?:^|\s)HBS(?:\s|$)/.test(n) || n.includes("ANTIGENE HBS");
+    const hasHbsAg = labels.some(label => {
+      const marker = normalizeExamName(label);
+      return !/ANTI\s*HBS|HBSAB|ANTICORPI\s+HBS/.test(marker) &&
+        (/\bHBSAG\b/.test(marker) || /(?:^|\s)HBS(?:\s|$)/.test(marker) || marker.includes("ANTIGENE HBS"));
+    });
     const hasAntiHbs = /ANTI\s*HBS|HBSAB|ANTICORPI\s+HBS/.test(n);
-    const hasAntiHbc = /ANTI\s*HBC|HBCAB|ANTICORPI\s+HBC/.test(n);
+    const hasAntiHbc = /ANTI\s*HBC|HBC\s*AB|ANTICORPI\s+HBC/.test(n) ||
+      (/ANTI CORE/.test(n) && /\bHBV\b|EPAT(?:ITE)? B/.test(n));
     const markerCount = [hasHbsAg, hasAntiHbs, hasAntiHbc].filter(Boolean).length;
     const hbvProfile =
       /HBV.*(?:REFLEX|PROFIL|COMPLET)|EPATITE B.*(?:REFLEX|PROFIL|COMPLET)/.test(n) ||
-      markerCount >= 2;
+      markerCount >= 2 || hasAntiHbc;
 
     return {
       ...buildUnprescribedDecisionContext(joined, []),
@@ -13551,12 +13556,13 @@ Output JSON compatto:
   }
 
   function preferredPrescriptionCatalogEntry(label, context = {}) {
-    const raw = String(label || "");
+    const raw = sanitizeCreationCatalogAlias(label);
     const n = normalizeExamName(raw);
     if (!n) return null;
 
     const direct = directCatalogCodeFromPrescriptionLabel(raw);
     if (direct) return direct;
+    if (["EMOGRUPPO", "GRUPPO SANGUIGNO", "GRUPPO ABO", "GRUPPO AB0", "GRUPPO ABO E RH", "GRUPPO AB0 E RH", "EMOGRUPPO E RH"].includes(n)) return findCatalogEntryByCode("90.65.3_2");
 
     // Sinonimi operativi della sola lista di prescrizione: non reinterpretare
     // "albumina glicata" come HbA1c e non alterare i parser dei referti.
@@ -13626,7 +13632,7 @@ Output JSON compatto:
       return findCatalogEntryByCode("PARVOINF");
     }
     if (!molecular && (n.includes("TREPONEMA") || n.includes("SIFIL") || /\bTPHA\b|\bTPPA\b|\bVDRL\b|\bRPR\b/.test(n))) {
-      return findCatalogEntryByCode("91.10.B_2");
+      return findCatalogEntryByCode(n.includes("LIQUOR") ? "91.10.B_3" : "91.10.B_2");
     }
     if (!molecular && (/\bHIV\b/.test(n) || n.includes("IMMUNODEFIC"))) {
       return findCatalogEntryByCode("91.23.F_0");
@@ -13637,7 +13643,7 @@ Output JSON compatto:
 
     // HBV: se la lista contiene un profilo/multipli marcatori usa il reflex
     // unico. HBs/HBsAg isolato usa invece HBsAg, come da uso operativo.
-    const isHbv = /\bHBV\b/.test(n) || n.includes("EPATITE B") || /HBS|HBC|HBE/.test(n);
+    const isHbv = /\bHBV\b|EPAT(?:ITE)? B/.test(n) || /HBS|HBC|HBE/.test(n);
     if (!molecular && isHbv) {
       if (context?.hbvProfile) return findCatalogEntryByCode("91.18.6_0");
       if (/ANTI\s*HBS|HBSAB|ANTICORPI\s+HBS/.test(n)) return findCatalogEntryByCode("91.18.3_0");
@@ -13688,11 +13694,21 @@ Output JSON compatto:
       }
 
       const code = String(match.entry.code || "").trim();
-      if (!code || seenCodes.has(code)) continue;
+      if (!code) continue;
+      if (seenCodes.has(code)) {
+        const existing=resolved.find(item=>item.catalogCode===code);
+        if (existing && !existing.requestedLabels.includes(label)) existing.requestedLabels.push(label);
+        if (existing && code==="91.18.6_0" && /IGM/.test(n)) existing.mappingNote="Voce unica HBV reflex: il catalogo include anti-HBc IgM se HBsAg e anti-HBc sono positivi. Non e un dosaggio IgM autonomo.";
+        continue;
+      }
       seenCodes.add(code);
 
       resolved.push({
         raw_label: label,
+        requestedLabels: [label],
+        mappingNote: code==="91.18.6_0" ? (/IGM/.test(n)
+          ? "Voce unica HBV reflex: il catalogo include anti-HBc IgM se HBsAg e anti-HBc sono positivi. Non e un dosaggio IgM autonomo."
+          : "I marcatori HBV richiesti confluiscono nella stessa voce reflex del catalogo.") : "",
         evidence: String(rawItem?.evidence || "").trim(),
         exam: String(match.entry.name || label),
         catalogCode: code,
@@ -13773,7 +13789,7 @@ Output JSON compatto:
   }
 
   function prescriptionRowMatchesItem(row, item) {
-    const text = normalizePrescriptionRowText(prescriptionRowText(row));
+    const text = normalizePrescriptionRowText(sanitizeCreationCatalogAlias(prescriptionRowText(row)));
     if (!text) return false;
 
     const code = normalizePrescriptionRowText(item?.catalogCode || "");
@@ -13783,7 +13799,7 @@ Output JSON compatto:
     };
     if (code && containsWhole(code)) return true;
     const names = [item?.catalogEntry?.name, item?.exam, ...(item?.catalogEntry?.aliases || [])]
-      .filter(Boolean).map(normalizePrescriptionRowText);
+      .filter(Boolean).map(sanitizeCreationCatalogAlias).map(normalizePrescriptionRowText);
     return names.some(name => name.length >= 4 && containsWhole(name));
   }
 
@@ -13887,7 +13903,8 @@ Output JSON compatto:
   }
 
   function prescriptionCatalogOptionEvidence(option, item) {
-    const text = String(option?.textContent || "").trim();
+    const originalText = String(option?.textContent || "").trim();
+    const text = sanitizeCreationCatalogAlias(originalText);
     const codes = text.toUpperCase().match(/\b(?:\d{2}\.\d{2}\.[A-Z0-9]+|G\d\.\d+)(?:_[A-Z0-9]+)?\b/g) || [];
     const codeExact = codes.includes(String(item.catalogCode || item.catalogEntry?.code || "").toUpperCase());
     const codeConflict = codes.length > 0 && !codeExact;
@@ -13898,7 +13915,8 @@ Output JSON compatto:
     const captionMatched = exactCaption || prescriptionRowMatchesItem(option, { ...item, catalogCode: "" });
     const nameScore = captionMatched ? Math.max(0, ...names.map(name => filterSelectCandidateScore(text, name))) : 0;
     const score = codeConflict ? 0 : codeExact ? 12000 : exactCaption ? 11000 : nameScore;
-    return { score, codeExact, codeConflict, codeAbsent: codes.length === 0, captionMatched, exactCaption };
+    const referenceCodes = originalText.slice(text.length).toUpperCase().match(/\b(?:\d{2}\.\d{2}\.[A-Z0-9]+|G\d\.\d+)(?:_[A-Z0-9]+)?\b/g) || [];
+    return { score, codeExact, codeConflict, codeAbsent: codes.length === 0, captionMatched, exactCaption, ignoredReferenceCodesCount: referenceCodes.length };
   }
 
   function readPrescriptionCatalogSelection(item, popup) {
@@ -13949,6 +13967,7 @@ Output JSON compatto:
       return { visible, ranked, bestScore,
         codeMatchesCount: evidence.filter(entry => entry.codeExact).length,
         captionMatchesCount: evidence.filter(entry => entry.captionMatched).length,
+        ignoredReferenceCodesCount: evidence.reduce((sum,entry)=>sum+entry.ignoredReferenceCodesCount,0),
         codeAbsentCount: evidence.filter(entry => entry.codeAbsent).length,
         codeConflictCount: evidence.filter(entry => entry.codeConflict).length };
     };
@@ -13966,6 +13985,7 @@ Output JSON compatto:
     trace(2, { optionsCount: found.visible.length, matchingOptions: found.ranked.length,
       bestScore: found.bestScore, codeMatchesCount: found.codeMatchesCount,
       captionMatchesCount: found.captionMatchesCount, codeAbsentCount: found.codeAbsentCount,
+      ignoredReferenceCodesCount: found.ignoredReferenceCodesCount,
       codeConflictCount: found.codeConflictCount });
     if (found.ranked.length !== 1) return { success: false, exactOptionFound: found.ranked.length > 0 };
     let option = found.ranked[0];
@@ -14610,7 +14630,7 @@ button:disabled {
   function recordDiagnosticEvent(kind, data = {}) {
     const allowedKinds = ["operazione_avviata", "operazione_terminata", "ia_completata", "ia_errore", "catalogo_selezione", "prescrizione_tentativo", "prescrizione_conferma", "prescrizione_riga", "prescrizione_duplicati", "ia_validazione", "parser_referto"];
     if (!allowedKinds.includes(kind)) return;
-    const allowedKeys = ["durationMs", "inputCharacters", "outputCharacters", "images", "numeric", "complex", "uncertain", "requested", "completed", "retries", "retriedRows", "catalogSelectionMs", "interrupted", "error", "rowIndex", "attempt", "queryIndex", "targetIsCode", "step", "optionsCount", "matchingOptions", "bestScore", "codeMatchesCount", "captionMatchesCount", "codeAbsentCount", "codeConflictCount", "matchingRows", "todayMatches", "unknownDateMatches", "acceptedNumeric", "acceptedComplex", "rejectedNumeric", "rejectedComplex", "rejectedUncertain", "knownLayout", "rawResults", "qwenUsed", "qwenResidualEvidence", "fieldPresent", "fieldIsCode", "fieldMatched", "popupVisible", "success", "confirmationSent", "pageHidden"];
+    const allowedKeys = ["durationMs", "inputCharacters", "outputCharacters", "images", "numeric", "complex", "uncertain", "requested", "completed", "retries", "retriedRows", "catalogSelectionMs", "interrupted", "error", "rowIndex", "attempt", "queryIndex", "targetIsCode", "step", "optionsCount", "matchingOptions", "bestScore", "codeMatchesCount", "captionMatchesCount", "codeAbsentCount", "codeConflictCount", "ignoredReferenceCodesCount", "matchingRows", "todayMatches", "unknownDateMatches", "acceptedNumeric", "acceptedComplex", "rejectedNumeric", "rejectedComplex", "rejectedUncertain", "knownLayout", "rawResults", "qwenUsed", "qwenResidualEvidence", "fieldPresent", "fieldIsCode", "fieldMatched", "popupVisible", "success", "confirmationSent", "pageHidden"];
     const safe = {};
     for (const key of allowedKeys) {
       const value = data[key];
@@ -14649,6 +14669,7 @@ button:disabled {
       "catalogo_selezione step: 1 filtro non avviato; 2 proposte disponibili; 3 verifica dopo click; 4 verifica dopo Tab; 5 verifica dopo ricostruzione menu. fieldMatched = testo del campo corrispondente; fieldIsCode = solo codice digitato; popupVisible = menu ancora visibile. Questi stati non provano la creazione della riga.",
       "prescrizione_conferma = conferma locale inviata; prescrizione_riga success = nuova riga verificata. Nomi esami, codici e contenuto dei campi non sono inclusi.",
       "Selezione: codeMatchesCount = codici coincidenti; codeAbsentCount = proposte senza codice visibile; codeConflictCount = codici diversi; captionMatchesCount = nomi compatibili; bestScore = punteggio migliore. matchingOptions conta le sole proposte a pari punteggio migliore.",
+      "ignoredReferenceCodesCount = codici citati nelle note amministrative (Incluso / Non associabile), esclusi dal riconoscimento della proposta.",
       "prescrizione_duplicati: matchingRows = righe corrispondenti; todayMatches = Data presc. odierna; unknownDateMatches = Data presc. non leggibile. Le date effettive non sono incluse.",
       "parser_referto: formato riconosciuto, conteggi e uso IA. ia_validazione: proposte accettate/scartate dopo controllo sul testo sorgente; nessuna risposta IA o contenuto sorgente viene incluso.",
       "Per assistenza: incollare separatamente nomi esami, valori, unita e intervalli, dopo anonimizzazione. Non allegare documenti identificabili.",
@@ -15069,11 +15090,12 @@ button:disabled {
     for (const item of prescriptionListItems) {
       html.push(`
         <div class="row ok">
-          <b>${escapeHtml(item.raw_label)}</b>
+          <b>${escapeHtml((item.requestedLabels || [item.raw_label]).join(" · "))}</b>
           <div class="main-value">
             → <b>${escapeHtml(item.catalogCode)}</b> · ${escapeHtml(item.exam)}
           </div>
           ${item.evidence ? `<span class="evidence">${escapeHtml(item.evidence)}</span>` : ""}
+          ${item.mappingNote ? `<span class="small">${escapeHtml(item.mappingNote)}</span>` : ""}
         </div>
       `);
     }

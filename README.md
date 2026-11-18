@@ -8,7 +8,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/1702micky/segretariommg/releases/download/v0.16.16/SegretarioMMG-Setup-0.16.16.exe"><strong>↓ Scarica per Windows</strong></a>
+  <a href="https://github.com/1702micky/segretariommg/releases/download/v0.16.17/SegretarioMMG-Setup-0.16.17.exe"><strong>↓ Scarica per Windows</strong></a>
   &nbsp; · &nbsp;
   <a href="#inizia-in-quattro-passaggi">Come si installa</a>
   &nbsp; · &nbsp;
@@ -17,7 +17,7 @@
 
 <p align="center">Windows 64 bit · Google Chrome · IA sul tuo computer</p>
 
-> **Versione pilota 0.16.16.** Prima dell’uso abituale, prova il programma e controlla i risultati in Eumed. Il programma di installazione non è ancora firmato digitalmente.
+> **Versione pilota 0.16.17.** Prima dell’uso abituale, prova il programma e controlla i risultati in Eumed. Il programma di installazione non è ancora firmato digitalmente.
 
 ## Cosa puoi fare
 
@@ -51,7 +51,7 @@ Sono riconosciuti anche i referti con **ES. EMOCROMOCITOMETRICO** in italiano e 
 
 ### 1 · Scarica e avvia il setup
 
-[**Scarica Segretario MMG per Windows**](https://github.com/1702micky/segretariommg/releases/download/v0.16.16/SegretarioMMG-Setup-0.16.16.exe)
+[**Scarica Segretario MMG per Windows**](https://github.com/1702micky/segretariommg/releases/download/v0.16.17/SegretarioMMG-Setup-0.16.17.exe)
 
 Salva i lavori aperti in Chrome e chiudi gli eventuali lavori IA in corso. Il primo avviso del setup spiega che **premendo OK Chrome verrà chiuso automaticamente**, anche in background, per il tuo account: i dati non salvati potrebbero andare persi. Annullando, Chrome resta aperto. Non riaprirlo fino al messaggio finale. I download possono richiedere anche un'ora o più. Avvia il file e autorizza la richiesta di Windows. Usa lo stesso account amministratore con cui lavori in Chrome.
 
@@ -122,6 +122,8 @@ Quando il pannello è aperto, puoi spostarlo trascinando la sua **barra superior
 La diagnostica della prescrizione da lista registra anche i passaggi della selezione: tentativo, proposte visibili, verifica del campo, uso del Tab, conferma locale e verifica della nuova riga. Le righe sono identificate da un numero progressivo; nomi degli esami, codici e contenuto dei campi non vengono inclusi. Il file contiene una legenda per interpretare questi stati.
 
 Nella prescrizione da lista, una riga già presente blocca il reinserimento come duplicato solo quando **Data presc. è quella di oggi**. Le prescrizioni vecchie non impediscono un nuovo inserimento; la data dell'esito non viene usata per questo controllo. Se la colonna o la data non sono leggibili, il programma chiede una verifica esplicita. La selezione riconosce anche le proposte che mostrano solo il nome dopo una ricerca per codice, ma esclude quelle con un codice diverso.
+
+I codici citati nelle note **Incluso / Non associabile** non vengono confusi con il codice della proposta. Sono riconosciute anche diciture abbreviate come **Emogruppo** e **HBcAb**. Le richieste accorpate nel reflex HBV restano visibili nell'anteprima, con una nota sulle condizioni di inclusione dell'IgM previste dal catalogo.
 
 ## Gli aggiornamenti
 
