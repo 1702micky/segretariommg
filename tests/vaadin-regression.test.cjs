@@ -1035,3 +1035,11 @@ test('residual resolver uses named fields and one independent output contract',(
  assert.ok(schema.properties.r.items.required.includes('raw_label'));assert.ok(schema.properties.r.items.required.includes('value'));
  assert.equal(schema.properties.r.items.additionalProperties,false);assert.ok(c.buildResidualResolverSystemPrompt().length<3000);
 });
+
+test('phosphates, urinary daily excretion and bone ALP remain distinct',()=>{
+ const c=reportContext();load(['getLongReportKind','parseInlineSpecimenMeasurement','parseAnchoredMeasurementLine','parsePureBilateralRangeLine','parseNearbyBilateralRange','extractSpecimenAnchoredResults'],{},c);
+ const raw=c.extractSpecimenAnchoredResults('s - FOSFATI\nMetodo: test\n3,5 mg/dL 2,3 - 5,1\nu - CALCIO\n48 mg/24h 100 - 300\nu - FOSFATO\n0,50 g/24h 0,40 - 1,30\ns - FOSFATASI ALCALINA OSSEA SPECIFICA\n10 ug/L 4 - 26 Premenopausa\n5 - 24 Postmenopausa');
+ assert.equal(raw.length,4);assert.equal(c.getExamConcept(raw[0].exam),'PHOSPHATE');assert.equal(c.getExamConcept(raw[1].exam),'CALCIUM_URINE');assert.equal(c.getExamConcept(raw[2].exam),'PHOSPHATE_URINE');assert.equal(c.getExamConcept(raw[3].exam),'ALP_BONE');
+ assert.equal(raw[3].ref_min,'');assert.equal(c.getExamConcept('CALCIO TOTALE [U] 24H'),'CALCIUM_URINE');assert.equal(c.getExamConcept('FOSFATO INORGANICO [U] 24H'),'PHOSPHATE_URINE');assert.equal(c.getExamConcept('FOSFATASI ALCALINA ISOENZIMA OSSEO'),'ALP_BONE');
+ assert.equal(c.convertMeasurement('PHOSPHATE_URINE','0,50','g/24h').unit,'g/24h');assert.equal(c.convertMeasurement('CALCIUM_URINE','48','mg/24h').value,'48');
+});

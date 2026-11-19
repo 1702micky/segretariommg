@@ -3,7 +3,7 @@
 
   // ============================================================
   // SEGRETARIO MMG
-  // Versione 0.16.22
+  // Versione 0.16.23
   //
   // - Estrazione con Qwen 3.5 4B locale
   // - Comunicazione diretta Ollama via service worker Chrome
@@ -403,6 +403,12 @@
   function getExamConcept(text) {
     const n = normalizeExamName(text);
 
+    if (/FOSFATASI ALCALINA|\bALP\b/.test(n) && /OSSE|OSSO/.test(n)) return "ALP_BONE";
+    if (/^U\b|\bURIN|\bU 24H/.test(n)) {
+      if (/CALCIO|CALCIUR/.test(n)) return "CALCIUM_URINE";
+      if (/FOSFAT[OI]|FOSFORO|FOSFATUR/.test(n)) return "PHOSPHATE_URINE";
+    }
+
     // Creatinine used to calculate ACR is a separate concentration result.
     if (/\bCREATININA\b/.test(n) && !/ALBUMIN|RAPPORTO|CLEARANCE/.test(n) &&
         (/\[\s*U\s*\]/i.test(String(text)) || /^U\b|URIN|\bU 24H\b/.test(n))) return "CREATININE_URINE";
@@ -573,7 +579,7 @@
     }
 
     if (
-      n.includes("FOSFATO") ||
+      /\bFOSFAT[OI]\b/.test(n) ||
       n.includes("FOSFORO") ||
       n.includes("PHOSPHATE")
     ) {
@@ -2007,7 +2013,7 @@
 
     if (specialConcept === "PHOSPHATE") {
       const phosphate = exams.filter(exam =>
-        normalizeExamName(exam).includes("FOSFATO INORGANICO")
+        normalizeExamName(exam).includes("FOSFATO INORGANICO") && specimenCompatible(query,exam)
       );
 
       if (phosphate.length === 1) {
@@ -4423,6 +4429,7 @@
 
   function shouldSuppressAutomaticRange(concept) {
     return new Set([
+      "ALP_BONE",
       "FERRITIN",
       "FSH",
       "ESTRADIOL",
@@ -5899,7 +5906,7 @@ ${numberedReportText}
       }
 
       out.push({
-        exam: label,
+        exam: specimen === "U" ? `u - ${label}` : label,
         value: measurement.value,
         unit: measurement.unit,
         ref_min: refMin,
@@ -8078,7 +8085,7 @@ ${sourceText}
       getExamConcept(aiExam);
 
     const conceptTerms = {
-      PHOSPHATE: ["FOSFATO", "FOSFORO"],
+      PHOSPHATE: ["FOSFATO", "FOSFATI", "FOSFORO"],
       BILIRUBIN_TOTAL: ["BILIRUBINA"],
       BILIRUBIN_DIRECT: ["BILIRUBINA DIRETTA"],
       BILIRUBIN_INDIRECT: ["BILIRUBINA INDIRETTA"],
@@ -8462,7 +8469,7 @@ ${sourceText}
       IRON:["FERRO","SIDEREMIA"],
       FERRITIN:["FERRITINA"],
       VITAMIN_D:["VITAMINA D","25 OH","25OH"],
-      PHOSPHATE:["FOSFATO","FOSFORO"],
+      PHOSPHATE:["FOSFATO","FOSFATI","FOSFORO"],
       PTH:["PTH","PARATORMONE"],
       BILIRUBIN_TOTAL:["BILIRUBINA TOTALE","BILIRUBINA"],
       PCR:["PCR","PROTEINA C REATTIVA"],
@@ -10509,11 +10516,11 @@ ${sourceText}
 
     // Creatinina urinaria: il catalogo distingue 24h e voce per calcolo ACR.
     // Se il referto dice solo "U-creatinina" non inventiamo quale delle due.
-    if (n.includes("CREATININA") && /ACR|ALBUMIN.?CREAT/.test(n)) return exact("90.16.22_7");
+    if (n.includes("CREATININA") && /ACR|ALBUMIN.?CREAT/.test(n)) return exact("90.16.23_7");
     if (concept === "CREATININE_URINE" || (concept === "CREATININE" && detectSpecimen(query) === "URINE")) {
-      if (/24 ?H|24 ORE|GIORNALIER/.test(n)) return exact("90.16.22_3");
-      if (/ACR|ALBUMIN.?CREAT|RAPPORTO/.test(n)) return exact("90.16.22_7");
-      if (context?.urineCreatinineForAcr && !/MINZ|DROGHE|PERITONE|DIALISI/.test(n)) return exact("90.16.22_7");
+      if (/24 ?H|24 ORE|GIORNALIER/.test(n)) return exact("90.16.23_3");
+      if (/ACR|ALBUMIN.?CREAT|RAPPORTO/.test(n)) return exact("90.16.23_7");
+      if (context?.urineCreatinineForAcr && !/MINZ|DROGHE|PERITONE|DIALISI/.test(n)) return exact("90.16.23_7");
       return { blocked: true, reason: "Creatinina urinaria senza tipologia prescrivibile univoca" };
     }
 

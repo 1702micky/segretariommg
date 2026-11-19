@@ -1,7 +1,6 @@
-Segretario MMG 0.16.22
+Segretario MMG 0.16.23
 
-- Resolver IA con campi nominati e prompt indipendente, senza formati contraddittori.
-- Schema vincolato ai target numerici e complessi.
-- Fasce contestuali di riferimento escluse dalla compilazione automatica.
-- Parser rapido mantenuto attivo; IA per il recupero degli esami residui.
-- 102 test superati.
+- Sinonimo FOSFATI per fosfato sierico.
+- Calcio e fosfato urinari distinti dai dosaggi sierici; conservazione delle unita delle 24 ore.
+- Fosfatasi alcalina ossea distinta dalla totale; fasce contestuali escluse dai riferimenti automatici.
+- 103 test di regressione superati.
