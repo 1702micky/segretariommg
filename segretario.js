@@ -3,7 +3,7 @@
 
   // ============================================================
   // SEGRETARIO MMG
-  // Versione 0.16.24
+  // Versione 0.16.25
   //
   // - Estrazione con Qwen 3.5 4B locale
   // - Comunicazione diretta Ollama via service worker Chrome
@@ -10516,11 +10516,11 @@ ${sourceText}
 
     // Creatinina urinaria: il catalogo distingue 24h e voce per calcolo ACR.
     // Se il referto dice solo "U-creatinina" non inventiamo quale delle due.
-    if (n.includes("CREATININA") && /ACR|ALBUMIN.?CREAT/.test(n)) return exact("90.16.24_7");
+    if (n.includes("CREATININA") && /ACR|ALBUMIN.?CREAT/.test(n)) return exact("90.16.25_7");
     if (concept === "CREATININE_URINE" || (concept === "CREATININE" && detectSpecimen(query) === "URINE")) {
-      if (/24 ?H|24 ORE|GIORNALIER/.test(n)) return exact("90.16.24_3");
-      if (/ACR|ALBUMIN.?CREAT|RAPPORTO/.test(n)) return exact("90.16.24_7");
-      if (context?.urineCreatinineForAcr && !/MINZ|DROGHE|PERITONE|DIALISI/.test(n)) return exact("90.16.24_7");
+      if (/24 ?H|24 ORE|GIORNALIER/.test(n)) return exact("90.16.25_3");
+      if (/ACR|ALBUMIN.?CREAT|RAPPORTO/.test(n)) return exact("90.16.25_7");
+      if (context?.urineCreatinineForAcr && !/MINZ|DROGHE|PERITONE|DIALISI/.test(n)) return exact("90.16.25_7");
       return { blocked: true, reason: "Creatinina urinaria senza tipologia prescrivibile univoca" };
     }
 
@@ -13612,6 +13612,57 @@ Output JSON compatto:
 
     const direct = directCatalogCodeFromPrescriptionLabel(raw);
     if (direct) return direct;
+    const reviewedAliases = {
+  "Colesterolo LDL": "90.13.C_0",
+  "PSA totale": "90.56.9_0",
+  "PSA libero": "90.56.9_0",
+  "Bilirubina totale": "90.10.5_3",
+  "Bilirubina reflex": "90.10.5_3",
+  "Elettroforesi dell'emoglobina": "90.66.7_2",
+  "Emoglobina A2 (HbA2)": "90.66.7_2",
+  "Emoglobina fetale (HbF)": "90.66.7_2",
+  "HbA2": "90.66.7_2",
+  "HbF": "90.66.7_2",
+  "Folati (acido folico)": "90.23.2_2",
+  "Folati": "90.23.2_2",
+  "Anticorpi anti-tireoperossidasi (anti-TPO)": "90.51.4_0",
+  "Anti-TPO": "90.51.4_0",
+  "Troponina cardiaca": "90.82.3_0",
+  "Immunoglobuline IgA totali": "90.69.4_7",
+  "Anticorpi antinucleo (ANA)": "90.52.4_0",
+  "Anticorpi anti-EBV VCA IgM": "91.21.6_0",
+  "Anticorpi anti-EBV VCA IgG": "91.21.6_0",
+  "Anticorpi anti-EBNA IgG": "91.21.6_0",
+  "Pepsinogeno I": "90.38.M_0",
+  "Pepsinogeno II": "90.38.N_0",
+  "Vitamina E (alfa-tocoferolo)": "90.45.2_3",
+  "Osmolalità sierica": "90.34.7_2",
+  "Bicarbonati sierici": "90.10.2_2",
+  "IgG4 sieriche": "90.68.4_5",
+  "G6PD": "90.27.2_0",
+  "G6PD (glucosio-6-fosfato deidrogenasi)": "90.27.2_0",
+  "Anticorpi anticardiolipina IgG": "90.47.5_2",
+  "Anticorpi anticardiolipina IgM": "90.47.5_3",
+  "Anticorpi anti-mitocondrio (AMA)": "90.52.1_0",
+  "Anticorpi anti-LKM1": "90.51.5_0",
+  "Anticorpi anti-SLA/LP": "90.52.5_13",
+  "Anticorpi anti-GBM": "90.48.9_0",
+  "Anticorpi anticentromero": "90.47.F_0",
+  "Anticorpi anti-Jo-1": "90.47.7_0",
+  "Anticorpi anti-Mi-2": "90.52.5_40",
+  "DHEA-S": "90.17.2_0",
+  "Androstenedione": "90.17.3_0",
+  "17-OH progesterone": "90.01.2_0",
+  "Tireoglobulina": "90.41.5_0",
+  "Anticorpi anti-recettore dell'acetilcolina": "90.53.9_0",
+  "Anticorpi anti-GAD65": "90.49.7_0",
+  "Anticorpi anti-IA2": "90.52.5_12",
+  "NSE (enolasi neurone-specifica)": "90.18.4_0",
+  "HBV-DNA quantitativo": "91.16.B_0",
+  "HCV-RNA quantitativo": "91.19.4_0"
+};
+    const reviewed=Object.entries(reviewedAliases).find(([alias])=>normalizeExamName(alias)===n);
+    if(reviewed) return findCatalogEntryByCode(reviewed[1]);
     if (["EMOGRUPPO", "GRUPPO SANGUIGNO", "GRUPPO ABO", "GRUPPO AB0", "GRUPPO ABO E RH", "GRUPPO AB0 E RH", "EMOGRUPPO E RH"].includes(n)) return findCatalogEntryByCode("90.65.3_2");
 
     // Sinonimi operativi della sola lista di prescrizione: non reinterpretare
@@ -13723,6 +13774,10 @@ Output JSON compatto:
         continue;
       }
 
+      if (/BILIRUBINA/.test(n) && /\bDIRETTA\b|\bINDIRETTA\b/.test(n) && !/REFLEX/.test(n)) {
+        uncertain.push({text:label,reason:"Saltata: bilirubina diretta/indiretta non prescritta autonomamente. La voce prevista e BILIRUBINA reflex 90.10.5_3."});
+        continue;
+      }
       const preferred = preferredPrescriptionCatalogEntry(label, context);
       let match = preferred
         ? { entry: preferred, score: 4000, preferred: true }
@@ -13756,7 +13811,7 @@ Output JSON compatto:
       resolved.push({
         raw_label: label,
         requestedLabels: [label],
-        mappingNote: code==="91.18.6_0" ? (/IGM/.test(n)
+        mappingNote: code==="90.56.9_0" ? "PSA totale e libero confluiscono nella stessa voce PSA reflex." : code==="90.66.7_2" ? "Frazioni HbA2, HbF e varianti confluiscono nel dosaggio delle frazioni emoglobiniche." : code==="91.21.6_0" ? "Marcatori EBV accorpati: EBNA, VCA IgG e VCA IgM." : code==="91.18.6_0" ? (/IGM/.test(n)
           ? "Voce unica HBV reflex: il catalogo include anti-HBc IgM se HBsAg e anti-HBc sono positivi. Non e un dosaggio IgM autonomo."
           : "I marcatori HBV richiesti confluiscono nella stessa voce reflex del catalogo.") : "",
         evidence: String(rawItem?.evidence || "").trim(),

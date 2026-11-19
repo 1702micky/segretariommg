@@ -1053,3 +1053,15 @@ test('incomplete prescription JSON retries smaller analysis batches and retains 
  let calls=0;const c=load(['splitPrescriptionAnalysisText','extractPrescriptionListWithQwenText'],{extractPrescriptionListTextBatch:async(text,_cb,selective)=>{calls++;assert.equal(selective,true);if(text.includes('\n'))throw Error('IA non ha restituito JSON completo.');return {items:[{raw_label:text}],uncertain:[]};}});
  const result=await c.extractPrescriptionListWithQwenText('[x] AST\n[ ] ALT\n[x] GGT');assert.equal(result.items.length,3);assert.ok(calls>3);
 });
+
+test('prescription components follow requested reflex policies and never schedule direct bilirubin',()=>{
+ const c=resolverContext();const result=c.resolvePrescriptionListItems(['Bilirubina totale','Bilirubina diretta','Bilirubina indiretta','PSA totale','PSA libero',"Elettroforesi dell'emoglobina",'Emoglobina A2 (HbA2)','Emoglobina fetale (HbF)','Colesterolo LDL'].map(raw_label=>({raw_label})));
+ assert.deepEqual(Array.from(result.resolved,x=>x.catalogCode),['90.10.5_3','90.56.9_0','90.66.7_2','90.13.C_0']);
+ assert.equal(result.uncertain.length,2);assert.ok(result.uncertain.every(x=>/Saltata/.test(x.reason)));
+ assert.equal(result.resolved.find(x=>x.catalogCode==='90.56.9_0').requestedLabels.length,2);
+ assert.equal(result.resolved.find(x=>x.catalogCode==='90.66.7_2').requestedLabels.length,3);
+});
+test('reviewed prescription aliases distinguish antigen subtypes, fractions and routine tests from stimulated tests',()=>{
+ const c=resolverContext();for(const [label,code] of [['Folati (acido folico)','90.23.2_2'],['Pepsinogeno I','90.38.M_0'],['Pepsinogeno II','90.38.N_0'],['Anticorpi anti-Jo-1','90.47.7_0'],['Anticorpi anti-Mi-2','90.52.5_40'],['Tireoglobulina','90.41.5_0'],['17-OH progesterone','90.01.2_0'],['Androstenedione','90.17.3_0'],['IgG4 sieriche','90.68.4_5'],['HBV-DNA quantitativo','91.16.B_0'],['HCV-RNA quantitativo','91.19.4_0']])assert.equal(c.preferredPrescriptionCatalogEntry(label).code,code,label);
+ const explicit=c.preferredPrescriptionCatalogEntry('90.13.B_0 Colesterolo LDL indiretto');assert.equal(explicit.code,'90.13.B_0');
+});
