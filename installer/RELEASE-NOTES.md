@@ -1,7 +1,7 @@
-Segretario MMG 0.16.20
+Segretario MMG 0.16.21
 
-- Data referto riconosciuta anche quando il timestamp precede la firma digitale; nascita e accettazione non usate.
-- Resolver IA richiede data e citazione della relativa riga, conservata nel contesto.
-- Limiti di riferimento unilaterali espliciti: compila solo Min o Max senza inventare il limite mancante; riferimenti multipli restano da verificare.
-- Unita ACR mg/g crea riconosciuta anche nelle risposte IA.
-- 97 test di regressione superati.
+- Le indicazioni Raccomandato sono riferimenti del risultato, non nuovi esami.
+- Segnalazione unica del rapporto ACR non associabile a una voce autonoma certa del catalogo, mantenendo la distinzione dalla creatinina.
+- Lettura della glicata IFCC con asterisco di anomalia.
+- Intestazioni amministrative e analiti gia riconosciuti non attivano il recupero IA; gli analiti sconosciuti restano inviati alla IA.
+- 101 test di regressione superati.

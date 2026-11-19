@@ -479,7 +479,7 @@ function reportContext() {
   load(['cleanModelLabLabel', 'isSerologyCatalogEntry', 'looksLikeSerologyText',
     'normalizeValueString', 'parseItalianNumber', 'formatNumber', 'normalizeUnit', 'convertMeasurement',
     'parseBilateralRangeText', 'prepareRangeInput', 'shouldSuppressAutomaticRange', 'convertRange', 'unitsCompatible', 'sanitizeUnprescribedRange',
-    'isKnownResidualNonExamLabel', 'prepareUnprescribedNumericCandidate', 'sameNumericValue', 'valuesClinicallyEquivalent', 'dedupeUnprescribedNumeric', 'parsePrescribedTransferText',
+    'isKnownResidualNonExamLabel','dedupeUnprescribedWarnings', 'prepareUnprescribedNumericCandidate', 'sameNumericValue', 'valuesClinicallyEquivalent', 'dedupeUnprescribedNumeric', 'parsePrescribedTransferText',
     'cleanReportLines', 'normalizeAouNumericToken', 'isNumericOrComparatorToken', 'isAouUnitToken',
     'isAouMajorLabel', 'parseAouBilateralRange', 'parseBilateralRangeFromTail',
     'parseInlineKnownMeasurement', 'parseAouContinuationMeasurement', 'extractAouPadovaResults',
@@ -999,4 +999,32 @@ test('ACR unit abbreviation crea is normalized without accepting serum creatinin
  assert.equal(c.normalizeUnit('mg/g crea'),'mg/g');
  assert.equal(c.unitCompatibleWithConcept('ACR','mg/g crea'),true);
  assert.equal(c.unitCompatibleWithConcept('CREATININE','mg/g crea'),false);
+});
+
+test('recommendation lines are reference metadata, while real tests with thresholds remain candidates',()=>{
+ const c=reportContext();
+ for(const label of ['Raccomandato: < 190','Raccomandato: > 66','Raccomandato: Fino a 150']) assert.equal(c.isKnownResidualNonExamLabel(label),true);
+ assert.equal(c.isKnownResidualNonExamLabel('P-COLESTEROLO TOTALE'),false);
+ assert.equal(c.parseBilateralRangeFromTail('Raccomandato: < 190').max,'190');
+ assert.equal(c.parseBilateralRangeFromTail('Raccomandato: > 66').min,'66');
+ assert.equal(c.parseBilateralRangeFromTail('Raccomandato: Fino a 150').max,'150');
+});
+test('duplicate ACR warnings are reported once without mapping the ratio to creatinine',()=>{
+ const c=reportContext();load(['dedupeUnprescribedWarnings'],{},c);
+ const warnings=c.dedupeUnprescribedWarnings([{text:'Rapporto Alb/Cre (RAC) <25 mg/g Creat.',reason:'Catalogo non univoco'},{text:'Rapporto Alb/Cre (RAC)',reason:'Catalogo non univoco'},{text:'Raccomandato: < 180',reason:'Nessuna voce'}]);
+ assert.equal(warnings.length,1);assert.match(warnings[0].text,/RAC/);
+ assert.equal(c.preferredCreationCatalogDecision('Rapporto Alb/Cre (RAC)').blocked,true);
+});
+test('flagged IFCC glycated hemoglobin is parsed without requiring AI rescue',()=>{
+ const c=reportContext();load(['isHbA1cLabel','isHbA1cAuxiliaryLine','extractHbA1cFallback'],{},c);
+ const result=c.extractHbA1cFallback('EMOGLOBINA GLICATA\nB-HbA1C (IFCC)\t44 * mmol/mol\t20 - 42');
+ assert.equal(result.value,'44');assert.equal(result.unit,'mmol/mol');
+});
+
+test('administrative headers and already parsed HbA1c do not trigger residual AI, unknown analytes still do',()=>{
+ const c=inlineLabContext();load(['isHbA1cLabel','isHbA1cAuxiliaryLine'],{},c);
+ const parsed={labLayout:'ULSS6_SCHIAVONIA',results:[{exam:'EMOGLOBINA GLICATA (HbA1c)',value:'44',unit:'mmol/mol'}],longReports:[]};
+ const noise='Azienda ULSS n. 6 Euganea\nB-HbA1C (IFCC) 44 * mmol/mol\nRaccomandato: < 180\nIMPORTANTE: al fine di una corretta interpretazione consultare il Medico';
+ assert.equal(c.getUnclaimedAiEvidence(noise,parsed).count,0);
+ assert.equal(c.getUnclaimedAiEvidence(noise+'\nANALITA SCONOSCIUTO 12 mg/dL',parsed).count,1);
 });

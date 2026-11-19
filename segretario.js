@@ -3,7 +3,7 @@
 
   // ============================================================
   // SEGRETARIO MMG
-  // Versione 0.16.20
+  // Versione 0.16.21
   //
   // - Estrazione con Qwen 3.5 4B locale
   // - Comunicazione diretta Ollama via service worker Chrome
@@ -5755,14 +5755,14 @@ ${numberedReportText}
   }
 
   function parseBilateralRangeFromTail(text) {
-    const s = String(text ?? "").trim().replace(/^\[|\]$/g, "");
+    const s = String(text ?? "").trim().replace(/^\[|\]$/g, "").replace(/^Raccomandato\s*:\s*/i, "").replace(/^Fino a\s+/i, "<= ");
     if (/rischio|diminuzione|normale|gravid|\beta\b/i.test(s)) return null;
     const m = s.match(
       /(?:^|\s)([+-]?\d+(?:[.,]\d+)?)\s*[-–]\s*([+-]?\d+(?:[.,]\d+)?)(?:\s|$)/
     );
 
     if (!m) {
-      const one=s.match(/^([<>\u2264\u2265])\s*([+-]?\d+(?:[.,]\d+)?)$/);
+      const one=s.match(/^(<=|>=|[<>\u2264\u2265])\s*([+-]?\d+(?:[.,]\d+)?)$/);
       if (!one) return null;
       return {min:/[>\u2265]/.test(one[1])?one[2]:'',max:/[<\u2264]/.test(one[1])?one[2]:''};
     }
@@ -7021,7 +7021,7 @@ ${numberedReportText}
 
       for (let j = from; j <= to; j++) {
         const line = lines[j];
-        const re = /(\d{1,3}(?:[.,]\d+)?)\s*(mmol\s*\/\s*mol|%)/gi;
+        const re = /(\d{1,3}(?:[.,]\d+)?)\s*(?:\*\s*)?(mmol\s*\/\s*mol|%)/gi;
         let m;
         while ((m = re.exec(line)) !== null) {
           candidates.push({
@@ -8240,6 +8240,7 @@ ${sourceText}
     const n = normalizeExamName(s);
 
     if (!s) return true;
+    if (/^(?:AZIENDA\s+ULSS|REGIONE\s+(?:DEL\s+)?VENETO|IMPORTANTE:.*(?:INTERPRETAZIONE|MEDICO))/i.test(s)) return true;
 
     if (/^===\s*PAGINA\b/i.test(s)) return true;
     if (/^PAG(?:INA)?\.?\s*\d+(?:\s+DI\s+\d+)?$/i.test(s)) return true;
@@ -10563,11 +10564,11 @@ ${sourceText}
 
     // Creatinina urinaria: il catalogo distingue 24h e voce per calcolo ACR.
     // Se il referto dice solo "U-creatinina" non inventiamo quale delle due.
-    if (n.includes("CREATININA") && /ACR|ALBUMIN.?CREAT/.test(n)) return exact("90.16.20_7");
+    if (n.includes("CREATININA") && /ACR|ALBUMIN.?CREAT/.test(n)) return exact("90.16.21_7");
     if (concept === "CREATININE_URINE" || (concept === "CREATININE" && detectSpecimen(query) === "URINE")) {
-      if (/24 ?H|24 ORE|GIORNALIER/.test(n)) return exact("90.16.20_3");
-      if (/ACR|ALBUMIN.?CREAT|RAPPORTO/.test(n)) return exact("90.16.20_7");
-      if (context?.urineCreatinineForAcr && !/MINZ|DROGHE|PERITONE|DIALISI/.test(n)) return exact("90.16.20_7");
+      if (/24 ?H|24 ORE|GIORNALIER/.test(n)) return exact("90.16.21_3");
+      if (/ACR|ALBUMIN.?CREAT|RAPPORTO/.test(n)) return exact("90.16.21_7");
+      if (context?.urineCreatinineForAcr && !/MINZ|DROGHE|PERITONE|DIALISI/.test(n)) return exact("90.16.21_7");
       return { blocked: true, reason: "Creatinina urinaria senza tipologia prescrivibile univoca" };
     }
 
@@ -11528,10 +11529,22 @@ Per r usa solo il risultato corrente numerico e un range bilaterale chiaro. Non 
     return getUnclaimedAiEvidence(reportText, parserLike);
   }
 
+  function dedupeUnprescribedWarnings(items) {
+    const seen=new Set();
+    return (items || []).filter(item => {
+      if (isKnownResidualNonExamLabel(item?.text,item?.reason)) return false;
+      const concept=getExamConcept(item?.text || '');
+      const key=concept==='ACR' ? 'ACR' : normalizeExamName(item?.text || '')+'|'+normalizeExamName(item?.reason || '');
+      if (seen.has(key)) return false;
+      seen.add(key); return true;
+    });
+  }
+
   function isKnownResidualNonExamLabel(text, reason = "") {
     const n = normalizeExamName(text || "");
     const r = normalizeExamName(reason || "");
     if (!n) return true;
+    if (/^(?:RACCOMANDATO|VALORI? DI RIFERIMENTO|FISIOLOGICO|MODERATAMENTE AUMENTATO|SEVERAMENTE AUMENTATO)(?:\b|:)/.test(n)) return true;
     // Frammenti senza etichetta: i risultati ancorati alla loro intestazione
     // vengono estratti separatamente, non trattati come nuovi esami.
     if (/^(?:[<>≤≥]?\s*[+-]?\d+(?:[.,]\d+)?\s*\*?\s*)?(?:mg\s*\/\s*d[lL]|mmol\s*\/\s*[lL]|umol\s*\/\s*[lL]|mg\s*\/\s*g(?:\s+Creat\.?)?)(?:\s|$)/i.test(String(text || "").trim())) return true;
@@ -12277,7 +12290,7 @@ Per r usa solo il risultato corrente numerico e un range bilaterale chiaro. Non 
       reportDate,
       numeric,
       complex,
-      uncertain: uncertain.filter(item => !isKnownResidualNonExamLabel(item?.text, item?.reason)),
+      uncertain: dedupeUnprescribedWarnings(uncertain),
       stats: {
         rawResults: rawResults.length,
         numeric: numeric.length,
@@ -16630,6 +16643,8 @@ button:disabled {
     const isKnownAuxiliaryLine = line => {
       const n = normalizeExamName(line);
       const concept = getExamConcept(line);
+      if (isKnownResidualNonExamLabel(line)) return true;
+      if (parsedConcepts.has("HBA1C") && isHbA1cLabel(line)) return true;
 
       // Rapporto FLC: dato accessorio delle due catene quando Eumed non ha
       // una riga dedicata. Non deve far partire un recupero semantico per un
