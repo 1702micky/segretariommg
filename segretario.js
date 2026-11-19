@@ -3,7 +3,7 @@
 
   // ============================================================
   // SEGRETARIO MMG
-  // Versione 0.16.23
+  // Versione 0.16.24
   //
   // - Estrazione con Qwen 3.5 4B locale
   // - Comunicazione diretta Ollama via service worker Chrome
@@ -10516,11 +10516,11 @@ ${sourceText}
 
     // Creatinina urinaria: il catalogo distingue 24h e voce per calcolo ACR.
     // Se il referto dice solo "U-creatinina" non inventiamo quale delle due.
-    if (n.includes("CREATININA") && /ACR|ALBUMIN.?CREAT/.test(n)) return exact("90.16.23_7");
+    if (n.includes("CREATININA") && /ACR|ALBUMIN.?CREAT/.test(n)) return exact("90.16.24_7");
     if (concept === "CREATININE_URINE" || (concept === "CREATININE" && detectSpecimen(query) === "URINE")) {
-      if (/24 ?H|24 ORE|GIORNALIER/.test(n)) return exact("90.16.23_3");
-      if (/ACR|ALBUMIN.?CREAT|RAPPORTO/.test(n)) return exact("90.16.23_7");
-      if (context?.urineCreatinineForAcr && !/MINZ|DROGHE|PERITONE|DIALISI/.test(n)) return exact("90.16.23_7");
+      if (/24 ?H|24 ORE|GIORNALIER/.test(n)) return exact("90.16.24_3");
+      if (/ACR|ALBUMIN.?CREAT|RAPPORTO/.test(n)) return exact("90.16.24_7");
+      if (context?.urineCreatinineForAcr && !/MINZ|DROGHE|PERITONE|DIALISI/.test(n)) return exact("90.16.24_7");
       return { blocked: true, reason: "Creatinina urinaria senza tipologia prescrivibile univoca" };
     }
 
@@ -13378,7 +13378,57 @@ Per r usa solo il risultato corrente numerico e un range bilaterale chiaro. Non 
     return matched >= Math.min(2, tokens.length) && matched / tokens.length >= 0.6;
   }
 
+  function splitPrescriptionAnalysisText(sourceText, maxChars = 900) {
+    const text=String(sourceText || '').trim(), parts=[];
+    let current='', depth=0;
+    for(let index=0;index<text.length;index++) {
+      const char=text[index];
+      if('(['.includes(char)) depth++;
+      if(')]'.includes(char)) depth=Math.max(0,depth-1);
+      if(!depth && /[\n;,]/.test(char) && !(char===',' && /\d/.test(text[index-1]||'') && /\d/.test(text[index+1]||''))) {if(current.trim()) parts.push(current.trim());current='';}
+      else current+=char;
+    }
+    if(current.trim()) parts.push(current.trim());
+    const chunks=[];current='';let count=0;
+    for(const part of parts) {
+      if(current && (current.length+part.length+1>maxChars || count>=12)) {chunks.push(current);current='';count=0;}
+      current+=(current?'\n':'')+part;count++;
+    }
+    if(current) chunks.push(current);
+    return chunks;
+  }
+
   async function extractPrescriptionListWithQwenText(sourceText, progressCallback = null) {
+    const text=String(sourceText || '').trim();
+    if(!text) return {items:[],uncertain:[]};
+    const selective=/[\u2610\u2611\u2612\u25a1\u2713\u2714\u2717\u2718]|\[[ xX]\]|^\s*[xX]\s+/m.test(text);
+    const chunks=splitPrescriptionAnalysisText(text), items=[], uncertain=[];
+    let activeBatch=0;
+    const read=async(chunk,depth=0)=>{
+      try {
+        return await extractPrescriptionListTextBatch(chunk,info=>progressCallback?.({...info,current:activeBatch+1,total:chunks.length}),selective);
+      } catch(error) {
+        if(depth>=3 || !/JSON|tronc|incomplet/i.test(String(error?.message || error))) throw error;
+        const smaller=splitPrescriptionAnalysisText(chunk,Math.max(1,Math.floor(chunk.length/2)));
+        if(smaller.length<2) throw error;
+        const combined={items:[],uncertain:[]};
+        for(const part of smaller){const result=await read(part,depth+1);combined.items.push(...result.items);combined.uncertain.push(...result.uncertain);}
+        return combined;
+      }
+    };
+    for(let i=0;i<chunks.length;i++) {
+      activeBatch=i;
+      progressCallback?.({phase:'prescription_qwen_start',source:'text',current:i+1,total:chunks.length});
+      let result;
+      try {result=await read(chunks[i]);}
+      catch(error){throw new Error(`Analisi lista interrotta al blocco ${i+1}/${chunks.length}: ${error?.message || error}. La lista non e stata completata: nessun inserimento avviato.`);}
+      items.push(...result.items);uncertain.push(...result.uncertain);
+    }
+    progressCallback?.({phase:'prescription_qwen_done',count:items.length});
+    return {items,uncertain};
+  }
+
+  async function extractPrescriptionListTextBatch(sourceText, progressCallback = null, selective = false) {
     const text = String(sourceText || "").trim();
     if (!text) return { items: [], uncertain: [] };
 
@@ -13405,7 +13455,7 @@ Output compatto:
     progressCallback?.({ phase: "prescription_qwen_start", source: "text" });
     const content = await ollamaChat(
       [
-        { role: "system", content: system },
+        { role: "system", content: system + (selective ? "\nLa lista completa contiene marcature selettive: anche in questo frammento includi SOLO voci esplicitamente selezionate." : "") },
         { role: "user", content: text }
       ],
       info => progressCallback?.({ phase: "prescription_qwen_stream", chars: info?.chars || 0 }),
@@ -15132,9 +15182,9 @@ button:disabled {
     } else if (info?.phase === "prescription_vision_stream") {
       resultsBox.innerHTML = `<div class="summary">IA per immagini · ${escapeHtml(info.label || "")} · ${info.chars || 0} caratteri…</div>`;
     } else if (info?.phase === "prescription_qwen_start") {
-      resultsBox.innerHTML = `<div class="summary">IA · interpretazione della lista incollata…</div>`;
+      resultsBox.innerHTML = `<div class="summary">IA · interpretazione della lista incollata${info.total > 1 ? ` · blocco ${info.current}/${info.total}` : ""}…</div>`;
     } else if (info?.phase === "prescription_qwen_stream") {
-      resultsBox.innerHTML = `<div class="summary">IA · lista incollata · ${info.chars || 0} caratteri…</div>`;
+      resultsBox.innerHTML = `<div class="summary">IA · lista incollata${info.total > 1 ? ` · blocco ${info.current}/${info.total}` : ""} · ${info.chars || 0} caratteri…</div>`;
     }
   }
 

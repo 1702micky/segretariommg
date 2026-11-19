@@ -1,6 +1,7 @@
-Segretario MMG 0.16.23
+Segretario MMG 0.16.24
 
-- Sinonimo FOSFATI per fosfato sierico.
-- Calcio e fosfato urinari distinti dai dosaggi sierici; conservazione delle unita delle 24 ore.
-- Fosfatasi alcalina ossea distinta dalla totale; fasce contestuali escluse dai riferimenti automatici.
-- 103 test di regressione superati.
+- Liste lunghe analizzate in blocchi di circa 900 caratteri o 12 voci.
+- Recupero dei blocchi con JSON incompleto tramite suddivisione ulteriore.
+- Conservazione del contesto delle caselle selezionate e risoluzione catalogo dopo la riunione dei risultati.
+- Avanzamento blocco X/Y; nessuna analisi parziale usata se un blocco fallisce.
+- 105 test di regressione superati.

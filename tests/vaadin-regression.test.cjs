@@ -1043,3 +1043,13 @@ test('phosphates, urinary daily excretion and bone ALP remain distinct',()=>{
  assert.equal(raw[3].ref_min,'');assert.equal(c.getExamConcept('CALCIO TOTALE [U] 24H'),'CALCIUM_URINE');assert.equal(c.getExamConcept('FOSFATO INORGANICO [U] 24H'),'PHOSPHATE_URINE');assert.equal(c.getExamConcept('FOSFATASI ALCALINA ISOENZIMA OSSEO'),'ALP_BONE');
  assert.equal(c.convertMeasurement('PHOSPHATE_URINE','0,50','g/24h').unit,'g/24h');assert.equal(c.convertMeasurement('CALCIUM_URINE','48','mg/24h').value,'48');
 });
+
+test('long prescription lists are batched without losing entries, decimals or parenthesized names',()=>{
+ const c=load(['splitPrescriptionAnalysisText']);const entries=Array.from({length:180},(_,i)=>'Esame sintetico '+i+' (metodo A, B)');
+ const text=entries.join('\n');const chunks=c.splitPrescriptionAnalysisText(text);assert.ok(chunks.length>1);assert.equal(chunks.join('\n'),text);assert.ok(chunks.every(x=>x.length<=900));
+ assert.equal(c.splitPrescriptionAnalysisText('Vitamina 1,25 OH; AST, ALT').join('\n'),'Vitamina 1,25 OH\nAST\nALT');
+});
+test('incomplete prescription JSON retries smaller analysis batches and retains selective context',async()=>{
+ let calls=0;const c=load(['splitPrescriptionAnalysisText','extractPrescriptionListWithQwenText'],{extractPrescriptionListTextBatch:async(text,_cb,selective)=>{calls++;assert.equal(selective,true);if(text.includes('\n'))throw Error('IA non ha restituito JSON completo.');return {items:[{raw_label:text}],uncertain:[]};}});
+ const result=await c.extractPrescriptionListWithQwenText('[x] AST\n[ ] ALT\n[x] GGT');assert.equal(result.items.length,3);assert.ok(calls>3);
+});
