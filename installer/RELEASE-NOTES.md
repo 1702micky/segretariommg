@@ -1,7 +1,7 @@
-Segretario MMG 0.16.21
+Segretario MMG 0.16.22
 
-- Le indicazioni Raccomandato sono riferimenti del risultato, non nuovi esami.
-- Segnalazione unica del rapporto ACR non associabile a una voce autonoma certa del catalogo, mantenendo la distinzione dalla creatinina.
-- Lettura della glicata IFCC con asterisco di anomalia.
-- Intestazioni amministrative e analiti gia riconosciuti non attivano il recupero IA; gli analiti sconosciuti restano inviati alla IA.
-- 101 test di regressione superati.
+- Resolver IA con campi nominati e prompt indipendente, senza formati contraddittori.
+- Schema vincolato ai target numerici e complessi.
+- Fasce contestuali di riferimento escluse dalla compilazione automatica.
+- Parser rapido mantenuto attivo; IA per il recupero degli esami residui.
+- 102 test superati.

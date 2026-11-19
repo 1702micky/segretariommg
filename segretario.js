@@ -3,7 +3,7 @@
 
   // ============================================================
   // SEGRETARIO MMG
-  // Versione 0.16.21
+  // Versione 0.16.22
   //
   // - Estrazione con Qwen 3.5 4B locale
   // - Comunicazione diretta Ollama via service worker Chrome
@@ -5315,60 +5315,9 @@ ${numberedReportText}
   // T1..Tn che il codice riconverte nella voce Eumed esatta. Questo evita
   // falsi rifiuti per sinonimi/abbreviazioni (es. LAD -> LDH, LAMBDA -> LAMBA).
   function buildResidualResolverSchema(targetIds) {
-    const ids = Array.isArray(targetIds) && targetIds.length
-      ? targetIds
-      : ["T1"];
-
-    return {
-      type: "object",
-      properties: {
-        d: {type:"string"},
-        de: {type:"string"},
-        r: {
-          type: "array",
-          items: {
-            type: "array",
-            prefixItems: [
-              { type: "string", enum: ids },
-              { type: "string" },
-              { type: "string" },
-              { type: "string" },
-              { type: "string" },
-              { type: "string" },
-              { type: "string" }
-            ],
-            minItems: 7,
-            maxItems: 7
-          }
-        },
-        l: {
-          type: "array",
-          items: {
-            type: "array",
-            prefixItems: [
-              { type: "string", enum: ids },
-              { type: "integer", minimum: 1 },
-              { type: "integer", minimum: 1 }
-            ],
-            minItems: 3,
-            maxItems: 3
-          }
-        },
-        u: {
-          type: "array",
-          items: {
-            type: "array",
-            prefixItems: [
-              { type: "string", enum: ids },
-              { type: "string" }
-            ],
-            minItems: 2,
-            maxItems: 2
-          }
-        }
-      },
-      required: ["d", "de", "r", "l", "u"]
-    };
+    const str={type:'string'}, id={type:'string',enum:targetIds.length?targetIds:['T1']};
+    const object=properties=>({type:'object',properties,required:Object.keys(properties),additionalProperties:false});
+    return object({d:str,de:str,r:{type:'array',items:object({id,raw_label:str,value:str,unit:str,ref_min:str,ref_max:str,ref_unit:str})},l:{type:'array',items:object({id,line_start:{type:'integer',minimum:1},line_end:{type:'integer',minimum:1}})},u:{type:'array',items:object({id,reason:str})}});
   }
 
   function residualResolverTargetRows(targetExams) {
@@ -5394,26 +5343,13 @@ ${numberedReportText}
   }
 
   function buildResidualResolverSystemPrompt() {
-    return `${buildLabSystemPrompt()}\n
-REGOLE AGGIUNTIVE - RESOLVER EUMED VINCOLATO:
-- NON devi inventare o riscrivere il nome di un esame Eumed.
-- Ogni target Eumed ha un ID T1, T2, ...; restituisci SOLO quegli ID.
-- Il tuo compito è decidere se una riga/blocco del referto corrisponde
-  semanticamente a uno dei target proposti, anche quando il laboratorio usa
-  sinonimi, sigle o grafie differenti (es. LAD=LDH, lambda/lamda/lamba).
-- Un ID può essere restituito solo se il dato è realmente presente nel testo.
-- raw_label deve essere l'etichetta ORIGINALE del referto, non il nome Eumed.
-- valore e unità devono provenire dalla stessa riga/blocco di raw_label.
-- Se nessun target è supportato dal testo, omettilo: non indovinare.
-- Anche l'array u è VINCOLATO agli ID T1..Tn: non inserire etichette libere del referto.
-- Usa u solo quando esiste evidenza reale per quel target ma non è possibile validarlo; se il target è semplicemente assente dal referto, NON inserirlo in u.
-- Per referti complessi usa l'array l con ID target e intervallo di righe.
-- Un target complesso richiede una sua etichetta o un gruppo di componenti realmente presente: un intervallo di righe di altri esami NON giustifica TSH, PSA o altri target assenti.
-- Non mappare componenti interni di un referto complesso su altri target se
-  rappresentano soltanto sottoparametri della prestazione principale.
-- Matrice biologica, REFLEX/non REFLEX, diretto/indiretto e metodo restano
-  vincoli forti: una somiglianza semantica non basta se questi sono incompatibili.
-`;
+    return `Associa i risultati del referto ai target Eumed usando esclusivamente gli ID forniti. Rispondi in JSON conforme allo schema.
+Leggi tutto il documento, incluse urine e firma finale. Ometti target assenti, senza inventare risultati.
+Ogni risultato r contiene id, raw_label (nome originale dell'esame, mai una unita), value, unit, ref_min, ref_max, ref_unit. Copia valore e unita dalla stessa riga del nome; non convertire. Per <40 usa ref_max=40, ref_min vuoto; per >50 usa ref_min=50, ref_max vuoto. Non scegliere intervalli da fasce multiple.
+Solo target marcati COMPLESSO possono andare in l con line_start e line_end; il blocco deve contenere il relativo esame. Ometti TSH/PSA se assenti. Non duplicare in r componenti di emocromo, urine complete o elettroforesi. Creatinina urinaria e rapporto ACR sono risultati autonomi anche dentro sezioni urine.
+Matrice [S]/[P]=siero/plasma, [U]=urine. U/L e una unita enzimatica. Creatinina sierica con eventuale eGFR richiede il valore della creatinina, mai eGFR. Creatinina urinaria per ACR richiede la concentrazione urinaria; il rapporto ACR/RAC in mg/g e distinto. Il target microalbuminuria per calcolo ACR puo ricevere il rapporto ACR come previsto dal gestionale.
+d e la data referto/firma/validazione ISO; de e la riga originale completa contenente quella data. Non usare nascita, accettazione o revisione. Data e ora possono precedere la firma sulla stessa riga. Se mancante usa stringhe vuote.
+u contiene solo target con dati presenti ma ambigui, con motivo breve. Nessuna diagnosi o interpretazione.`;
   }
 
   async function extractResidualResolverBatch(
@@ -5448,13 +5384,13 @@ DATA REFERTO: d = data ISO YYYY-MM-DD, de = riga testuale INTERA contenente sia 
 Se non presente, d e de vuoti. Non usare nascita, accettazione o revisione documento.
 
 FORMATO r (risultati numerici):
-[ID_TARGET, valore, unità, ref_min, ref_max, ref_unit, raw_label_originale]
+{id, raw_label, value, unit, ref_min, ref_max, ref_unit}
 
 FORMATO l (referti complessi):
-[ID_TARGET, linea_inizio, linea_fine]
+{id, line_start, line_end}
 
 FORMATO u (solo se davvero necessario):
-[testo_o_ID, motivo]
+{id, reason}
 
 ==============================
 BLOCCO ${chunkIndex}/${totalChunks}
@@ -5464,6 +5400,12 @@ ${numberedReportText}
 `;
 
     const schema = buildResidualResolverSchema(rows.map(row => row.id));
+    const numericIds=rows.filter(row=>!row.kind).map(row=>row.id);
+    const complexIds=rows.filter(row=>row.kind).map(row=>row.id);
+    if(numericIds.length) schema.properties.r.items.properties.id={type:"string",enum:numericIds};
+    else schema.properties.r.maxItems=0;
+    if(complexIds.length) schema.properties.l.items.properties.id={type:"string",enum:complexIds};
+    else schema.properties.l.maxItems=0;
     const content = await ollamaChat(
       [
         { role: "system", content: buildResidualResolverSystemPrompt() },
@@ -5475,6 +5417,9 @@ ${numberedReportText}
     );
 
     const parsed = extractJSONObject(content);
+    parsed.r=(parsed.r||[]).map(x=>[x.id,x.value,x.unit,x.ref_min,x.ref_max,x.ref_unit,x.raw_label]);
+    parsed.l=(parsed.l||[]).map(x=>[x.id,x.line_start,x.line_end]);
+    parsed.u=(parsed.u||[]).map(x=>[x.id,x.reason]);
     const results = [];
     const long_reports = [];
     const uncertain = [];
@@ -5509,8 +5454,8 @@ ${numberedReportText}
         exam: target.exam,
         value: String(row?.[1] ?? ""),
         unit: String(row?.[2] ?? ""),
-        ref_min: String(row?.[3] ?? ""),
-        ref_max: String(row?.[4] ?? ""),
+        ref_min: /rischio|diminuzione/i.test(sourceLines.slice(sourceLines.findIndex(line=>normalizeExamName(line).includes(normalizedRawLabel)),sourceLines.findIndex(line=>normalizeExamName(line).includes(normalizedRawLabel))+4).join(" ")) ? "" : String(row?.[3] ?? ""),
+        ref_max: /rischio|diminuzione/i.test(sourceLines.slice(sourceLines.findIndex(line=>normalizeExamName(line).includes(normalizedRawLabel)),sourceLines.findIndex(line=>normalizeExamName(line).includes(normalizedRawLabel))+4).join(" ")) ? "" : String(row?.[4] ?? ""),
         ref_unit: String(row?.[5] ?? ""),
         raw_label: rawLabel,
         _qwenTargetId: target.id,
@@ -10564,11 +10509,11 @@ ${sourceText}
 
     // Creatinina urinaria: il catalogo distingue 24h e voce per calcolo ACR.
     // Se il referto dice solo "U-creatinina" non inventiamo quale delle due.
-    if (n.includes("CREATININA") && /ACR|ALBUMIN.?CREAT/.test(n)) return exact("90.16.21_7");
+    if (n.includes("CREATININA") && /ACR|ALBUMIN.?CREAT/.test(n)) return exact("90.16.22_7");
     if (concept === "CREATININE_URINE" || (concept === "CREATININE" && detectSpecimen(query) === "URINE")) {
-      if (/24 ?H|24 ORE|GIORNALIER/.test(n)) return exact("90.16.21_3");
-      if (/ACR|ALBUMIN.?CREAT|RAPPORTO/.test(n)) return exact("90.16.21_7");
-      if (context?.urineCreatinineForAcr && !/MINZ|DROGHE|PERITONE|DIALISI/.test(n)) return exact("90.16.21_7");
+      if (/24 ?H|24 ORE|GIORNALIER/.test(n)) return exact("90.16.22_3");
+      if (/ACR|ALBUMIN.?CREAT|RAPPORTO/.test(n)) return exact("90.16.22_7");
+      if (context?.urineCreatinineForAcr && !/MINZ|DROGHE|PERITONE|DIALISI/.test(n)) return exact("90.16.22_7");
       return { blocked: true, reason: "Creatinina urinaria senza tipologia prescrivibile univoca" };
     }
 

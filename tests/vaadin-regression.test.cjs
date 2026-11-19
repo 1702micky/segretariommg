@@ -1028,3 +1028,10 @@ test('administrative headers and already parsed HbA1c do not trigger residual AI
  assert.equal(c.getUnclaimedAiEvidence(noise,parsed).count,0);
  assert.equal(c.getUnclaimedAiEvidence(noise+'\nANALITA SCONOSCIUTO 12 mg/dL',parsed).count,1);
 });
+
+test('residual resolver uses named fields and one independent output contract',()=>{
+ const c=load(['buildResidualResolverSchema','buildResidualResolverSystemPrompt']);const schema=c.buildResidualResolverSchema(['T1']);
+ assert.equal(schema.properties.r.items.type,'object');assert.equal(schema.properties.l.items.type,'object');
+ assert.ok(schema.properties.r.items.required.includes('raw_label'));assert.ok(schema.properties.r.items.required.includes('value'));
+ assert.equal(schema.properties.r.items.additionalProperties,false);assert.ok(c.buildResidualResolverSystemPrompt().length<3000);
+});
