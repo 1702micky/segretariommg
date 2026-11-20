@@ -31,3 +31,9 @@ Microalbuminuria con concentrazione urinaria mg/L (anche mg/dL o ug/mL) puo supe
 - Nessuna interazione clinica in Eumed. Queste prove verificano il codice e casi sintetici, non stabiliscono una percentuale generale di accuratezza.
 
 - Prova visiva reale finale con Qwen3.5 4B: immagine sintetica con AST/GGT spuntati e ALT vuoto, 2/2 selezioni confermate e nessuna vuota accettata, circa 18,5 secondi inclusa verifica modello. Il primo contratto con booleano piu marcatore produceva risposte contraddittorie; sostituito con un unico stato enumerato.
+
+## Completamento 0.16.27
+
+La verifica reale del percorso senza prescrizioni ha evidenziato una lettura di line_end come estremo escluso (1/2 per una sola riga). Il prompt ora richiede esplicitamente estremi inclusivi e cita l'esempio 2/2. Dopo la modifica, Qwen3.5 4B ha fornito 2/2 risultati sintetici verificabili, con intervalli e senza referti complessi inventati. La citazione della data conservava il prefisso artificiale [L3]: il validatore ora lo rimuove solo dopo aver verificato numero e contenuto della riga. Test dedicato anche per un prefisso riferito alla riga sbagliata. Totale aggiornato: 122 test Node.
+
+Nella ripetizione finale con prompt inclusivo, anche Qwen3-VL 2B Instruct ha restituito 3/3 valori e intervalli verificabili nel percorso con prescrizioni e 2/2 voci selezionate nella lista. La citazione della data del 2B resta non conforme e viene scartata. Il precedente 0/3 descrive la prova prima di questa correzione, non l'esito finale.

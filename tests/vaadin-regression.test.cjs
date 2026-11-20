@@ -1143,3 +1143,9 @@ test('P1 albumin concentration cannot populate a pure ratio target',()=>{
  assert.equal(c.unitCompatibleWithConcept('ACR','mg/L','Microalbuminuria','RAPPORTO ALBUMINA CREATININA'),false);
  assert.equal(c.unitCompatibleWithConcept('ACR','mg/L','Microalbuminuria','MICROALBUMINURIA per calcolo ACR'),true);
 });
+
+test('P1 date citations may retain a verified synthetic line prefix but never point to a different line',()=>{
+ const c=evidenceContext(),source='AST 15 U/L\nData referto: 13/11/2026';
+ assert.equal(c.validatedAiReportDate('2026-11-13','[L2] Data referto: 13/11/2026',source),'2026-11-13');
+ assert.equal(c.validatedAiReportDate('2026-11-13','[L1] Data referto: 13/11/2026',source),'');
+});

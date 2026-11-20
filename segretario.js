@@ -3,7 +3,7 @@
 
   // ============================================================
   // SEGRETARIO MMG
-  // Versione 0.16.26
+  // Versione 0.16.27
   //
   // - Estrazione con Qwen 3.5 4B locale
   // - Comunicazione diretta Ollama via service worker Chrome
@@ -5375,7 +5375,13 @@ ${numberedReportText}
 
   function validatedAiReportDate(date, evidence, sourceText) {
     const iso = normalizeDateValue(date);
-    const quote = String(evidence || '').trim();
+    let quote = String(evidence || '').trim();
+    const citation = quote.match(/^\[L(\d+)\]\s*/);
+    if (citation) {
+      quote = quote.slice(citation[0].length);
+      const originalLine = String(sourceText || '').replace(/\r/g,'').split('\n')[Number(citation[1]) - 1];
+      if (originalLine?.trim() !== quote) return '';
+    }
     if (!iso || !quote || !String(sourceText || '').includes(quote)) return '';
     const explicit = parseExplicitReportDateText(quote);
     return explicit?.date === iso ? iso : '';
@@ -5412,7 +5418,7 @@ ${numberedReportText}
   function buildResidualResolverSystemPrompt() {
     return `Associa i risultati del referto ai target Eumed usando esclusivamente gli ID forniti. Rispondi in JSON conforme allo schema.
 Leggi tutto il documento, incluse urine e firma finale. Ometti target assenti, senza inventare risultati.
-Ogni risultato r contiene line_start e line_end del solo blocco sorgente numerato (massimo 4 righe), id, raw_label (nome originale dell'esame, mai una unita), value, unit, ref_min, ref_max, ref_unit. Copia valore e unita dalla stessa riga del nome; non convertire. Per <40 usa ref_max=40, ref_min vuoto; per >50 usa ref_min=50, ref_max vuoto. Non scegliere intervalli da fasce multiple.
+Ogni risultato r contiene line_start e line_end del solo blocco sorgente numerato (massimo 4 righe, estremi INCLUSIVI: se il risultato e su L2, line_start=2 e line_end=2), id, raw_label (nome originale dell'esame, mai una unita), value, unit, ref_min, ref_max, ref_unit. Copia valore e unita dalla stessa riga del nome; non convertire. Per <40 usa ref_max=40, ref_min vuoto; per >50 usa ref_min=50, ref_max vuoto. Non scegliere intervalli da fasce multiple.
 Solo target marcati COMPLESSO possono andare in l con line_start e line_end; il blocco deve contenere il relativo esame. Ometti TSH/PSA se assenti. Non duplicare in r componenti di emocromo, urine complete o elettroforesi. Creatinina urinaria e rapporto ACR sono risultati autonomi anche dentro sezioni urine.
 Matrice [S]/[P]=siero/plasma, [U]=urine. U/L e una unita enzimatica. Creatinina sierica con eventuale eGFR richiede il valore della creatinina, mai eGFR. Creatinina urinaria per ACR richiede la concentrazione urinaria; il rapporto ACR/RAC in mg/g e distinto. Il target microalbuminuria per calcolo ACR puo ricevere il rapporto ACR come previsto dal gestionale.
 d e la data referto/firma/validazione ISO; de e la riga originale completa contenente quella data. Non usare nascita, accettazione o revisione. Data e ora possono precedere la firma sulla stessa riga. Se mancante usa stringhe vuote.
@@ -11465,13 +11471,13 @@ ${options?.residualOnly
 
 Formato structured output:
 - d = data di refertazione/validazione/firma/emissione YYYY-MM-DD o ""
-- de = breve evidenza della data
-- r = oggetti risultati numerici con exam, value, unit, ref_min, ref_max, ref_unit, raw_label (tutte stringhe), line_start e line_end interi del solo blocco sorgente (massimo 4 righe).
+- de = citazione testuale INTERA della riga originale contenente sia la dicitura referto/firma sia la data, senza prefisso [Lx]. Non usare la sola dicitura.
+- r = oggetti risultati numerici con exam, value, unit, ref_min, ref_max, ref_unit, raw_label (tutte stringhe), line_start e line_end interi del solo blocco sorgente (massimo 4 righe, estremi INCLUSIVI). Se il risultato e sulla sola riga L2, usa line_start=2 e line_end=2, NON 3. raw_label contiene solo il nome originale, senza valore, unita o range.
 - c = oggetti referti complessi con kind, label, line_start, line_end. kind deve essere uno dei valori ammessi; righe intere numeriche.
 - u = oggetti elementi realmente incerti con text, reason. Non interpretare note generali del laboratorio come condizioni del paziente.
 mg/dl, mg/dL e MG/DL indicano la stessa unita: le maiuscole non sono ambiguita.
 CHIMICA CLINICA e COLESTEROLO FRAZIONATO sono intestazioni, non referti complessi. Glucosio, creatinina, lipidi sono risultati numerici.
-Non inventare URINE o altre sezioni assenti. Non calcolare valori mancanti. Copia raw_label dal testo originale. Le note generali sui limiti eGFR non sono esami incerti.
+Un elenco di risultati numerici non costituisce EMOCROMO o un altro referto complesso: se nessun complesso e presente, c=[]. Non inventare URINE o altre sezioni assenti. Non calcolare valori mancanti. Copia raw_label dal testo originale. Le note generali sui limiti eGFR non sono esami incerti.
 
 TRATTA SEMPRE COME COMPLESSI, MAI COME RISULTATI NUMERICI SINGOLI:
 - EMOCROMO e formula;
