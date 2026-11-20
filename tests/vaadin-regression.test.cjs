@@ -522,7 +522,7 @@ function inlineLabContext() {
   load(['countReportTerms', 'reportContainsLongReportCluster', 'detectKnownLabLayout', 'extractExplicitCbcSection',
     'parseInlineSpecimenMeasurement', 'parseAnchoredMeasurementLine', 'parsePureBilateralRangeLine',
     'parseNearbyBilateralRange', 'extractSpecimenAnchoredResults', 'getLongReportKind',
-    'reportReallyContainsLongReportKind', 'extractPsaReflexData', 'expandUnprescribedPayload', 'validateUnprescribedAiSource'], {}, context);
+    'reportReallyContainsLongReportKind', 'extractPsaReflexData', 'expandUnprescribedPayload', 'validateUnprescribedAiSource','sourceLabelForAiRow','validateAiMeasurementEvidence','validatedAiReportDate','normalizeDateValue','isValidCalendarDateParts','parseExplicitReportDateText'], {}, context);
   load(['knownLongReportKinds', 'getFixedComplexCatalogEntry', 'genericLongReportSlice', 'extractKnownLongReportText',
     'normalizeLongReportText', 'buildUnprescribedFixedComplexItems', 'aiLineHasMeasurement', 'aiLineIsClinicalContext',
     'isKnownAiChromeLine', 'stripKnownPageChrome', 'collectConsumedAiLineKeys', 'removeConsumedAiLines',
@@ -1064,4 +1064,82 @@ test('prescription components follow requested reflex policies and never schedul
 test('reviewed prescription aliases distinguish antigen subtypes, fractions and routine tests from stimulated tests',()=>{
  const c=resolverContext();for(const [label,code] of [['Folati (acido folico)','90.23.2_2'],['Pepsinogeno I','90.38.M_0'],['Pepsinogeno II','90.38.N_0'],['Anticorpi anti-Jo-1','90.47.7_0'],['Anticorpi anti-Mi-2','90.52.5_40'],['Tireoglobulina','90.41.5_0'],['17-OH progesterone','90.01.2_0'],['Androstenedione','90.17.3_0'],['IgG4 sieriche','90.68.4_5'],['HBV-DNA quantitativo','91.16.B_0'],['HCV-RNA quantitativo','91.19.4_0']])assert.equal(c.preferredPrescriptionCatalogEntry(label).code,code,label);
  const explicit=c.preferredPrescriptionCatalogEntry('90.13.B_0 Colesterolo LDL indiretto');assert.equal(explicit.code,'90.13.B_0');
+});
+
+test('P0 selective lists require a mark on the same segment and exact label boundaries',()=>{
+ const c=load(['normalizeExamName','prescriptionSelectionSupported']);
+ const source='[x] AST   [ ] ALT\n[ ] PSA libero\n[x] PSA totale\n☑ GGT';
+ for(const label of ['AST','PSA totale','GGT']) assert.equal(c.prescriptionSelectionSupported(label,source,true),true,label);
+ for(const label of ['ALT','PSA libero','T totale']) assert.equal(c.prescriptionSelectionSupported(label,source,true),false,label);
+ assert.equal(c.prescriptionSelectionSupported('ALT','AST\nALT',false),true);
+ assert.equal(c.prescriptionSelectionSupported('ALT','[x] AST\nALT',true),false);
+});
+function evidenceContext(){return load(['normalizeExamName','normalizeUnit','parseBilateralRangeFromTail','sourceLabelForAiRow','validateAiMeasurementEvidence','isValidCalendarDateParts','normalizeDateValue','parseExplicitReportDateText','validatedAiReportDate']);}
+test('P1 evidence binds numeric value and independent limits to one examination',()=>{
+ const c=evidenceContext(), source='AST 15 U/L 0 - 40\nALT 14 U/L 0 - 50';
+ const item={raw_label:'AST',value:'15',unit:'U/L',ref_min:'0',ref_max:'40',ref_unit:'U/L',line_start:1,line_end:1};
+ const valid=c.validateAiMeasurementEvidence(item,source);assert.equal(valid.ref_max,'40');assert.equal(valid._sourceEvidence.quote,source.split('\n')[0]);assert.equal(Object.isFrozen(valid._sourceEvidence),true);
+ assert.equal(c.validateAiMeasurementEvidence({...item,value:'14'},source),null);
+ assert.equal(c.validateAiMeasurementEvidence({...item,line_end:2},source),null);
+ const badRange=c.validateAiMeasurementEvidence({...item,ref_max:'50'},source);assert.equal(badRange.ref_max,'');assert.equal(badRange.value,'15');assert.equal(badRange._rangeRejected,true);
+ assert.equal(c.validateAiMeasurementEvidence({...item,quote:'invented'},source),null);
+ assert.equal(c.validateAiMeasurementEvidence({...item,line_start:undefined,line_end:undefined},source+'\nAST 15 U/L 0 - 40'),null);
+});
+test('P1 evidence supports numeric continuations, decimal commas and one-sided limits',()=>{
+ const c=evidenceContext();
+ const result=c.validateAiMeasurementEvidence({raw_label:'ALT',value:'14.5',unit:'U/L',ref_max:'40'},'ALT\n14,5\nU/L\n<40');
+ assert.equal(result.value,'14.5');assert.equal(result.ref_max,'40');
+ assert.equal(c.validateAiMeasurementEvidence({raw_label:'AST',value:'14',unit:'U/L'},'AST\nALT 14 U/L'),null);
+});
+test('P1 dates normalize format but require the same explicit report date in source',()=>{
+ const c=evidenceContext(),source='Data referto: 13/11/2026\nData nascita: 10/10/1980';
+ assert.equal(c.validatedAiReportDate('13/11/2026','Data referto: 13/11/2026',source),'2026-11-13');
+ assert.equal(c.validatedAiReportDate('2026-11-14','Data referto: 13/11/2026',source),'');
+ assert.equal(c.validatedAiReportDate('1980-10-10','Data nascita: 10/10/1980',source),'');
+ assert.equal(c.validatedAiReportDate('2026-11-13','Data referto: 13/11/2026','other'),'');
+});
+test('P1 microalbumin concentration is accepted without treating a ratio as concentration',()=>{
+ const c=load(['normalizeExamName','normalizeUnit','normalizedUnitLoose','unitCompatibleWithConcept','detectSpecimen']);
+ assert.equal(c.unitCompatibleWithConcept('ACR','mg/L','Microalbuminuria'),true);
+ assert.equal(c.unitCompatibleWithConcept('ACR','mg/L','Rapporto albumina creatinina'),false);
+ assert.equal(c.unitCompatibleWithConcept('CREATININE','mg/g','Creatinina [S]'),false);
+ assert.equal(c.detectSpecimen('Microalbuminuria per calcolo ACR'),'URINE');
+});
+
+test('P0 visual prescriptions reject candidates not confirmed by an independent image pass',async()=>{
+ let calls=0;const c=load(['normalizeExamName','expandPrescriptionListPayload','extractJSONObject','extractPrescriptionListWithQwenVision'],{ollamaChat:async messages=>{
+ assert.equal(messages[0].images[0],'synthetic-image');calls++;
+ return calls===1?JSON.stringify({i:[['AST','X'],['ALT','X']],u:[]}):JSON.stringify({rows:[{index:0,label:'AST',selected:true,marker:'checked'},{index:1,label:'ALT',selected:false,marker:'empty'}]});
+ }});vm.runInContext(source.match(/  const PRESCRIPTION_LIST_SCHEMA = \{[\s\S]*?\n  \};/)[0],c);
+ const result=await c.extractPrescriptionListWithQwenVision('synthetic-image','synthetic');
+ assert.equal(calls,2);assert.deepEqual(Array.from(result.items,x=>x.raw_label),['AST']);assert.equal(result.uncertain[0].text,'ALT');
+});
+test('P1 rejected range cannot reappear through evidence fallback',()=>{
+ const c=load(['prepareRangeInput']);assert.equal(c.prepareRangeInput({_rangeRejected:true,evidence:'AST 15 U/L 0 - 40'},'U/L').max,'');
+});
+
+test('P1 model-renamed label is recovered only from a matching source measurement',()=>{
+ const c=evidenceContext();
+ const x=c.validateAiMeasurementEvidence({raw_label:'ASPARTATO AMINOTRANSFERASI',value:'15',unit:'U/L',line_start:1,line_end:1},'AST 15 U/L 0 - 40');
+ assert.equal(x.raw_label,'AST');assert.equal(x._sourceEvidence.quote,'AST 15 U/L 0 - 40');
+ assert.equal(c.validateAiMeasurementEvidence({raw_label:'ASPARTATO AMINOTRANSFERASI',value:'16',unit:'U/L',line_start:1,line_end:1},'AST 15 U/L 0 - 40'),null);
+});
+test('P1 ranges from another inline examination or multiple bands are not reused',()=>{
+ const c=evidenceContext();
+ for(const tail of ['ALT 14 U/L 0 - 50','0 - 50; 0 - 60']){
+ const x=c.validateAiMeasurementEvidence({raw_label:'AST',value:'15',unit:'U/L',ref_min:'0',ref_max:'50'},'AST 15 U/L '+tail);
+ assert.equal(x._rangeRejected,true);assert.equal(x.ref_max,'');
+ }
+});
+
+test('urinary creatinine preferred codes exist in the catalog and are unrelated to the software version',()=>{
+ const c=resolverContext();
+ assert.equal(c.preferredCreationCatalogDecision('CREATININA [U] per calcolo ACR').entry.code,'90.16.3_7');
+ assert.equal(c.preferredCreationCatalogDecision('CREATININA [U] 24H').entry.code,'90.16.3_3');
+});
+
+test('P1 albumin concentration cannot populate a pure ratio target',()=>{
+ const c=load(['normalizeUnit','normalizedUnitLoose','unitCompatibleWithConcept']);
+ assert.equal(c.unitCompatibleWithConcept('ACR','mg/L','Microalbuminuria','RAPPORTO ALBUMINA CREATININA'),false);
+ assert.equal(c.unitCompatibleWithConcept('ACR','mg/L','Microalbuminuria','MICROALBUMINURIA per calcolo ACR'),true);
 });

@@ -1,10 +1,32 @@
 // Segretario MMG - background.js
-// Versione 0.16.25
+// Versione 0.16.26
 // Parla direttamente con Ollama locale via streaming NDJSON.
 
 const OLLAMA_URL = "http://127.0.0.1:11434/api/chat";
 const REQUEST_TIMEOUT_MS = 6 * 60 * 1000; // 6 minuti per blocco/pagina
 const modelInfoCache = new Map();
+const modelProbeCache = new Map();
+
+async function verifyLocalModel(name) {
+  const info = await getLocalOllamaModelInfo(name);
+  if (info.thinkingOnly || info.completion === false) return info;
+  const key = JSON.stringify(info);
+  if (Date.now() - (modelProbeCache.get(key) || 0) < 30 * 60 * 1000) return info;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort('probe_timeout'), 60000);
+  let result;
+  try {
+    await ollamaStreamChat({model:name,messages:[{role:'user',content:'Restituisci esattamente {"ok":true}.'}],num_predict:128,
+      format:{type:'object',properties:{ok:{type:'boolean'}},required:['ok'],additionalProperties:false}},
+      {postMessage:message=>{if(message.type !== 'OLLAMA_PROGRESS') result=message;}},'compatibility',controller);
+    if (result?.type !== 'OLLAMA_RESULT') throw new Error(result?.message || 'Verifica del modello non completata.');
+    let parsed;
+    try { parsed = JSON.parse(result.content); } catch {}
+    if (parsed?.ok !== true || Object.keys(parsed).length !== 1) throw new Error('Il modello non supera la verifica JSON senza ragionamento. Scegli un altro modello.');
+    modelProbeCache.set(key, Date.now());
+    return info;
+  } finally { clearTimeout(timer); }
+}
 
 function isRemoteOllamaModel(model) {
   return Boolean(model?.remote_host || model?.remote_model || /(?::cloud$|-cloud(?::|$))/i.test(model?.name || ""));
@@ -38,8 +60,14 @@ async function getLocalOllamaModelInfo(name) {
   const data = await ollamaMetadata("show", { model: name });
   if (isRemoteOllamaModel({ ...data, name })) throw new Error("Scegli un modello installato sul computer: i modelli cloud non sono utilizzati.");
   const capabilities = Array.isArray(data.capabilities) ? data.capabilities : null;
+  const metadata = `${data.template || ''} ${data.model_info?.['general.name'] || ''} ${data.parameters || ''}`;
+  const thinkingOnly = /gpt-oss/i.test(`${name} ${metadata}`) ||
+    (/qwen3.?vl/i.test(`${name} ${metadata}`) && /thinking/i.test(metadata) && !/instruct/i.test(metadata));
   const info = {
     name,
+    signature: JSON.stringify([data.modified_at,data.details,data.model_info,data.template,data.parameters]),
+    thinkingOnly,
+    variant: thinkingOnly ? 'Thinking (non compatibile)' : /instruct/i.test(`${name} ${metadata}`) ? 'Instruct' : 'Standard',
     completion: capabilities ? capabilities.includes("completion") : null,
     vision: capabilities ? capabilities.includes("vision") : null
   };
@@ -107,7 +135,7 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
   if (sender.id !== chrome.runtime.id || !["OLLAMA_LIST_MODELS", "OLLAMA_MODEL_INFO"].includes(message?.type)) return;
   const task = message.type === "OLLAMA_LIST_MODELS"
     ? listLocalOllamaModels().then(models => ({ models }))
-    : getLocalOllamaModelInfo(message.model).then(info => ({ info }));
+    : verifyLocalModel(message.model).then(info => ({ info }));
   task.then(result => respond({ ok: true, ...result })).catch(error => respond({
     ok: false,
     error: error?.name === "TypeError" || error?.name === "TimeoutError"
@@ -147,6 +175,7 @@ async function ollamaStreamChat(payload, port, requestId, controller) {
 
   try {
     const modelInfo = await getLocalOllamaModelInfo(payload.model || "qwen3.5:4b");
+    if (modelInfo.thinkingOnly) throw new Error('Questo modello richiede ragionamento esteso. Scegli una variante Instruct compatibile con think: false.');
     if (modelInfo.completion === false) throw new Error("Il modello selezionato non supporta l’analisi del testo. Scegli un modello di conversazione.");
     if ((payload.messages || []).some(message => message.images?.length) && modelInfo.vision === false) {
       throw new Error("Il modello selezionato legge soltanto testo. Per foto e PDF analizzati come immagini scegli un modello che supporti le immagini.");
@@ -227,6 +256,7 @@ async function ollamaStreamChat(payload, port, requestId, controller) {
         }
 
         chunksSeen += 1;
+        if (event?.message?.thinking?.trim()) throw new Error('Il modello ha attivato il ragionamento nonostante think: false. Analisi interrotta: scegli una variante Instruct compatibile.');
 
         const piece = event?.message?.content;
         if (typeof piece === "string") {
@@ -268,6 +298,7 @@ async function ollamaStreamChat(payload, port, requestId, controller) {
       }
 
       const piece = event?.message?.content;
+      if (event?.message?.thinking?.trim()) throw new Error('Il modello ha attivato il ragionamento nonostante think: false. Scegli una variante Instruct compatibile.');
       if (typeof piece === "string") content += piece;
       if (event?.done) {
         finalStats = {

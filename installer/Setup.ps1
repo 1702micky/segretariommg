@@ -25,7 +25,7 @@ $form=New-Object Windows.Forms.Form
 $form.Text='Segretario MMG - Installazione';$form.Size=New-Object Drawing.Size(650,450);$form.StartPosition='CenterScreen'
 $label=New-Object Windows.Forms.Label
 $label.Location=New-Object Drawing.Point(20,15);$label.Size=New-Object Drawing.Size(600,130)
-$label.Text="RAM rilevata: $ram GB.`r`nCartella: $Root`r`n`r`nDa 12 GB: consigliato Qwen 3.5 4B. Con meno RAM: Qwen3-VL 2B.`r`nLa RAM e' indicativa: Chrome, Eumed e altri programmi usano memoria.`r`nPuoi scegliere un modello oppure usare quelli gia installati."
+$label.Text="RAM rilevata: $ram GB.`r`nCartella: $Root`r`n`r`nDa 12 GB: consigliato Qwen 3.5 4B. Con meno RAM: Qwen3-VL 2B Instruct.`r`nLa RAM e' indicativa: Chrome, Eumed e altri programmi usano memoria.`r`nPuoi scegliere un modello oppure usare quelli gia installati."
 $form.Controls.Add($label)
 $small=New-Object Windows.Forms.RadioButton;$small.Text='Qwen3-VL 2B Instruct - piu leggero (circa 1,9 GB download)';$small.Location=New-Object Drawing.Point(20,150);$small.Size=New-Object Drawing.Size(600,30)
 $medium=New-Object Windows.Forms.RadioButton;$medium.Text='Qwen 3.5 4B - consigliato da 12 GB RAM (circa 3,3 GB download)';$medium.Location=New-Object Drawing.Point(20,185);$medium.Size=New-Object Drawing.Size(600,30)

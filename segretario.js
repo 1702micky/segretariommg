@@ -3,7 +3,7 @@
 
   // ============================================================
   // SEGRETARIO MMG
-  // Versione 0.16.25
+  // Versione 0.16.26
   //
   // - Estrazione con Qwen 3.5 4B locale
   // - Comunicazione diretta Ollama via service worker Chrome
@@ -1617,6 +1617,7 @@
 
     if (
       /^U\b/.test(n) ||
+      /MICROALBUMIN|ALBUMINUR/.test(n) ||
       /\bURIN/.test(n) ||
       /\bU 24H\b/.test(n) ||
       /\bURINE\b/.test(n)
@@ -4404,6 +4405,7 @@
   }
 
   function prepareRangeInput(item, resultUnit) {
+    if (item?._rangeRejected) return {min:"",max:"",unit:""};
     let min = String(item?.ref_min ?? "").trim();
     let max = String(item?.ref_max ?? "").trim();
     let unit = String(item?.ref_unit ?? "").trim();
@@ -5321,10 +5323,68 @@ ${numberedReportText}
   // Nei residui Qwen non restituisce più un nome esame libero: sceglie un ID
   // T1..Tn che il codice riconverte nella voce Eumed esatta. Questo evita
   // falsi rifiuti per sinonimi/abbreviazioni (es. LAD -> LDH, LAMBDA -> LAMBA).
+  function sourceLabelForAiRow(item, sourceText) {
+    // The source row owns its label. A model may propose a target, never rename this evidence.
+    const line = String(sourceText || '').replace(/\r/g, '').split('\n')[Number(item.line_start) - 1];
+    if (!line || !Number.isInteger(Number(item.line_start))) return String(item.raw_label || '');
+    const escapedUnit = String(item.unit || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    if (!escapedUnit) return String(item.raw_label || '');
+    const match = line.match(new RegExp('^(.+?)\\s+([<>≤≥]?\\s*[+-]?\\d+(?:[.,]\\d+)?)\\s*\\*?\\s*' + escapedUnit + '(?:\\s|$)', 'i'));
+    const canonical = value => String(value || '').replace(/\s/g,'').replace(',','.');
+    return match && canonical(match[2]) === canonical(item.value) ? match[1].trim() : String(item.raw_label || '');
+  }
+
+  function validateAiMeasurementEvidence(item, sourceText) {
+    // Stage 1: reconstruct immutable evidence independently of the proposed target.
+    const lines = String(sourceText || '').replace(/\r/g, '').split('\n');
+    const label = sourceLabelForAiRow(item, sourceText).trim();
+    const key = normalizeExamName(label);
+    if (!key) return null;
+    const starts = lines.map((line, index) => normalizeExamName(line).includes(key) ? index : -1).filter(i => i >= 0);
+    const candidates = [];
+    for (const start of starts) {
+      if (item.line_start != null && Number(item.line_start) !== start + 1) continue;
+      let end = start;
+      // Continuations may contain units/numbers, never another named examination.
+      while (end + 1 < lines.length && end < start + 3 && /^\s*(?:[<>≤≥+\-\d.,*\s]+|(?:mg|g|ng|pg|ug|µg|μg|mmol|umol|µmol|pmol|nmol|U|UI|mUI|mIU)\s*\/\s*(?:L|dL|mL)(?:\s+[\d.,<>≤≥*\s-]+)?)\s*$/i.test(lines[end + 1])) end++;
+      if (item.line_end != null && (Number(item.line_end) < start + 1 || Number(item.line_end) > end + 1)) continue;
+      if (item.line_end != null) end = Number(item.line_end) - 1;
+      const quote = lines.slice(start, end + 1).join('\n');
+      if (item.quote != null && String(item.quote).trim() !== quote.trim()) continue;
+      const position = lines[start].toLocaleLowerCase().indexOf(label.toLocaleLowerCase());
+      if (position < 0) continue;
+      const tail = quote.slice(position + label.length).replace(/^\s*[:=]?\s*/, '');
+      const measurement = tail.match(/^\s*([<>≤≥]?\s*[+-]?\d+(?:[.,]\d+)?)\s*\*?\s*([^\s\d]+(?:\s*\/\s*[^\s\d]+)?)\s*([\s\S]*)$/);
+      if (!measurement) continue;
+      const canonical = value => String(value || '').replace(/\s/g, '').replace(',', '.').replace('≤','<=').replace('≥','>=');
+      if (canonical(measurement[1]) !== canonical(item.value) || normalizeUnit(measurement[2]) !== normalizeUnit(item.unit)) continue;
+      const rangeText = measurement[3].trim().replace(/^[\[(]\s*([\s\S]*?)\s*[\])]$/, '$1');
+      const plainRange = /^(?:[+-]?\d+(?:[.,]\d+)?\s*[-–]\s*[+-]?\d+(?:[.,]\d+)?|(?:<=|>=|[<>≤≥])\s*[+-]?\d+(?:[.,]\d+)?)$/.test(rangeText);
+      const range = plainRange ? parseBilateralRangeFromTail(rangeText) : null;
+      const min = String(item.ref_min || ''), max = String(item.ref_max || '');
+      const single = measurement[3].trim().match(/^([<>≤≥])\s*(\d+(?:[.,]\d+)?)\s*$/);
+      const expectedMin = range?.min || (single && /[>≥]/.test(single[1]) ? single[2] : '');
+      const expectedMax = range?.max || (single && /[<≤]/.test(single[1]) ? single[2] : '');
+      const rangeSupported = (!min || canonical(min) === canonical(expectedMin)) && (!max || canonical(max) === canonical(expectedMax)) &&
+        (!item.ref_unit || normalizeUnit(item.ref_unit) === normalizeUnit(item.unit));
+      candidates.push({...item, raw_label:label, ref_min: rangeSupported ? min : '', ref_max: rangeSupported ? max : '', ref_unit: rangeSupported ? item.ref_unit : '',
+        evidence: quote, _sourceEvidence: Object.freeze({line_start:start + 1,line_end:end + 1,quote}), _rangeRejected: !rangeSupported});
+    }
+    return candidates.length === 1 ? candidates[0] : null;
+  }
+
+  function validatedAiReportDate(date, evidence, sourceText) {
+    const iso = normalizeDateValue(date);
+    const quote = String(evidence || '').trim();
+    if (!iso || !quote || !String(sourceText || '').includes(quote)) return '';
+    const explicit = parseExplicitReportDateText(quote);
+    return explicit?.date === iso ? iso : '';
+  }
+
   function buildResidualResolverSchema(targetIds) {
     const str={type:'string'}, id={type:'string',enum:targetIds.length?targetIds:['T1']};
     const object=properties=>({type:'object',properties,required:Object.keys(properties),additionalProperties:false});
-    return object({d:str,de:str,r:{type:'array',items:object({id,raw_label:str,value:str,unit:str,ref_min:str,ref_max:str,ref_unit:str})},l:{type:'array',items:object({id,line_start:{type:'integer',minimum:1},line_end:{type:'integer',minimum:1}})},u:{type:'array',items:object({id,reason:str})}});
+    return object({d:str,de:str,r:{type:'array',items:object({id,raw_label:str,value:str,unit:str,ref_min:str,ref_max:str,ref_unit:str,line_start:{type:"integer",minimum:1},line_end:{type:"integer",minimum:1}})},l:{type:'array',items:object({id,line_start:{type:'integer',minimum:1},line_end:{type:'integer',minimum:1}})},u:{type:'array',items:object({id,reason:str})}});
   }
 
   function residualResolverTargetRows(targetExams) {
@@ -5352,7 +5412,7 @@ ${numberedReportText}
   function buildResidualResolverSystemPrompt() {
     return `Associa i risultati del referto ai target Eumed usando esclusivamente gli ID forniti. Rispondi in JSON conforme allo schema.
 Leggi tutto il documento, incluse urine e firma finale. Ometti target assenti, senza inventare risultati.
-Ogni risultato r contiene id, raw_label (nome originale dell'esame, mai una unita), value, unit, ref_min, ref_max, ref_unit. Copia valore e unita dalla stessa riga del nome; non convertire. Per <40 usa ref_max=40, ref_min vuoto; per >50 usa ref_min=50, ref_max vuoto. Non scegliere intervalli da fasce multiple.
+Ogni risultato r contiene line_start e line_end del solo blocco sorgente numerato (massimo 4 righe), id, raw_label (nome originale dell'esame, mai una unita), value, unit, ref_min, ref_max, ref_unit. Copia valore e unita dalla stessa riga del nome; non convertire. Per <40 usa ref_max=40, ref_min vuoto; per >50 usa ref_min=50, ref_max vuoto. Non scegliere intervalli da fasce multiple.
 Solo target marcati COMPLESSO possono andare in l con line_start e line_end; il blocco deve contenere il relativo esame. Ometti TSH/PSA se assenti. Non duplicare in r componenti di emocromo, urine complete o elettroforesi. Creatinina urinaria e rapporto ACR sono risultati autonomi anche dentro sezioni urine.
 Matrice [S]/[P]=siero/plasma, [U]=urine. U/L e una unita enzimatica. Creatinina sierica con eventuale eGFR richiede il valore della creatinina, mai eGFR. Creatinina urinaria per ACR richiede la concentrazione urinaria; il rapporto ACR/RAC in mg/g e distinto. Il target microalbuminuria per calcolo ACR puo ricevere il rapporto ACR come previsto dal gestionale.
 d e la data referto/firma/validazione ISO; de e la riga originale completa contenente quella data. Non usare nascita, accettazione o revisione. Data e ora possono precedere la firma sulla stessa riga. Se mancante usa stringhe vuote.
@@ -5391,7 +5451,7 @@ DATA REFERTO: d = data ISO YYYY-MM-DD, de = riga testuale INTERA contenente sia 
 Se non presente, d e de vuoti. Non usare nascita, accettazione o revisione documento.
 
 FORMATO r (risultati numerici):
-{id, raw_label, value, unit, ref_min, ref_max, ref_unit}
+{id, raw_label, value, unit, ref_min, ref_max, ref_unit, line_start, line_end}
 
 FORMATO l (referti complessi):
 {id, line_start, line_end}
@@ -5424,7 +5484,7 @@ ${numberedReportText}
     );
 
     const parsed = extractJSONObject(content);
-    parsed.r=(parsed.r||[]).map(x=>[x.id,x.value,x.unit,x.ref_min,x.ref_max,x.ref_unit,x.raw_label]);
+    parsed.r=(parsed.r||[]).map(x=>[x.id,x.value,x.unit,x.ref_min,x.ref_max,x.ref_unit,x.raw_label,x.line_start,x.line_end]);
     parsed.l=(parsed.l||[]).map(x=>[x.id,x.line_start,x.line_end]);
     parsed.u=(parsed.u||[]).map(x=>[x.id,x.reason]);
     const results = [];
@@ -5438,7 +5498,7 @@ ${numberedReportText}
       // Un target complesso non deve essere valorizzato con un numero isolato.
       if (target.kind) continue;
 
-      const rawLabel = String(row?.[6] ?? "").trim();
+      const rawLabel = sourceLabelForAiRow({raw_label:row?.[6],value:row?.[1],unit:row?.[2],line_start:row?.[7]}, reportText);
       const normalizedRawLabel = normalizeExamName(rawLabel);
       const normalizedSource = normalizeExamName(reportText);
 
@@ -5457,17 +5517,15 @@ ${numberedReportText}
         continue;
       }
 
-      results.push({
-        exam: target.exam,
-        value: String(row?.[1] ?? ""),
-        unit: String(row?.[2] ?? ""),
-        ref_min: /rischio|diminuzione/i.test(sourceLines.slice(sourceLines.findIndex(line=>normalizeExamName(line).includes(normalizedRawLabel)),sourceLines.findIndex(line=>normalizeExamName(line).includes(normalizedRawLabel))+4).join(" ")) ? "" : String(row?.[3] ?? ""),
-        ref_max: /rischio|diminuzione/i.test(sourceLines.slice(sourceLines.findIndex(line=>normalizeExamName(line).includes(normalizedRawLabel)),sourceLines.findIndex(line=>normalizeExamName(line).includes(normalizedRawLabel))+4).join(" ")) ? "" : String(row?.[4] ?? ""),
-        ref_unit: String(row?.[5] ?? ""),
-        raw_label: rawLabel,
-        _qwenTargetId: target.id,
-        _qwenBoundTarget: true
-      });
+      const extracted = validateAiMeasurementEvidence({raw_label:rawLabel,value:String(row[1] ?? ""),unit:String(row[2] ?? ""),
+        ref_min:String(row[3] ?? ""),ref_max:String(row[4] ?? ""),ref_unit:String(row[5] ?? ""),line_start:row[7],line_end:row[8]},reportText);
+      if (!extracted) {
+        uncertain.push({text:target.exam,reason:"Valore, unita o riga sorgente IA non verificabili insieme."});
+        continue;
+      }
+      if (extracted._rangeRejected) uncertain.push({text:target.exam,reason:"Intervallo normale IA non confermato sulla riga sorgente: limiti lasciati vuoti."});
+      // Stage 2: bind only verified extraction; concept/specimen checks still run downstream.
+      results.push({...extracted, exam:target.exam,_qwenTargetId:target.id,_qwenBoundTarget:true});
     }
 
     for (const row of Array.isArray(parsed?.l) ? parsed.l : []) {
@@ -5504,7 +5562,7 @@ ${numberedReportText}
     }
 
     return {
-      report_date: /\d{1,2}[/.\-]\d{1,2}[/.\-]\d{4}/.test(String(parsed.de || "")) && normalizeExamName(reportText).includes(normalizeExamName(parsed.de)) ? String(parsed.d || "") : "",
+      report_date: validatedAiReportDate(parsed.d, parsed.de, reportText),
       report_date_evidence: String(parsed.de || ""),
       results,
       long_reports,
@@ -6063,7 +6121,7 @@ ${numberedReportText}
       if (
         concept &&
         unit &&
-        !unitCompatibleWithConcept(concept, unit)
+        !unitCompatibleWithConcept(concept, unit, label)
       ) {
         continue;
       }
@@ -6375,7 +6433,7 @@ ${numberedReportText}
 
       if (
         unit &&
-        !unitCompatibleWithConcept(concept, unit)
+        !unitCompatibleWithConcept(concept, unit, label)
       ) {
         continue;
       }
@@ -7129,11 +7187,13 @@ ${sourceText}
       .replace("µ", "u");
   }
 
-  function unitCompatibleWithConcept(concept, unit) {
+  function unitCompatibleWithConcept(concept, unit, label = "", targetLabel = "") {
     if (!concept) return true;
 
     const u = normalizedUnitLoose(unit);
     if (!u) return true;
+
+    if (concept === "ACR" && /MICROALBUMIN|ALBUMINUR/i.test(label) && !/RAPPORTO|RAC/i.test(label) && ["mg/l", "mg/dl", "ug/ml"].includes(u)) return !targetLabel || /MICROALBUMIN|ALBUMINUR/i.test(targetLabel);
 
     const allowed = {
       TSH: [
@@ -7281,7 +7341,7 @@ ${sourceText}
         if (
           rawResolvedConcept &&
           unit &&
-          !unitCompatibleWithConcept(rawResolvedConcept, unit)
+          !unitCompatibleWithConcept(rawResolvedConcept, unit, rawLabel, rawResolution.exam)
         ) {
           return {
             resolution: {
@@ -7371,7 +7431,7 @@ ${sourceText}
     if (
       concept &&
       unit &&
-      !unitCompatibleWithConcept(concept, unit)
+      !unitCompatibleWithConcept(concept, unit, rawLabel, resolution.exam)
     ) {
       return {
         resolution: {
@@ -8708,7 +8768,7 @@ ${sourceText}
       if (
         rawSpecimen === "URINE" &&
         !targetSpecimen &&
-        !/URIN|URINA|URINAR/i.test(exactAvailable)
+        !/URIN|URINA|URINAR|MICROALBUMIN|ALBUMINUR/i.test(exactAvailable)
       ) {
         return {
           resolution: {
@@ -8745,7 +8805,7 @@ ${sourceText}
     if (
       concept &&
       unit &&
-      !unitCompatibleWithConcept(concept, unit)
+      !unitCompatibleWithConcept(concept, unit, rawLabel, exactAvailable)
     ) {
       return {
         resolution: {
@@ -9556,6 +9616,7 @@ ${sourceText}
         referenceText: String(item.reference_text ?? "").trim(),
         raw_label: rawLabel,
         evidence: String(item.evidence ?? ""),
+        sourceEvidence: item._sourceEvidence || null,
         ai_exam: aiExam,
         concept,
 
@@ -10516,11 +10577,11 @@ ${sourceText}
 
     // Creatinina urinaria: il catalogo distingue 24h e voce per calcolo ACR.
     // Se il referto dice solo "U-creatinina" non inventiamo quale delle due.
-    if (n.includes("CREATININA") && /ACR|ALBUMIN.?CREAT/.test(n)) return exact("90.16.25_7");
+    if (n.includes("CREATININA") && /ACR|ALBUMIN.?CREAT/.test(n)) return exact("90.16.3_7");
     if (concept === "CREATININE_URINE" || (concept === "CREATININE" && detectSpecimen(query) === "URINE")) {
-      if (/24 ?H|24 ORE|GIORNALIER/.test(n)) return exact("90.16.25_3");
-      if (/ACR|ALBUMIN.?CREAT|RAPPORTO/.test(n)) return exact("90.16.25_7");
-      if (context?.urineCreatinineForAcr && !/MINZ|DROGHE|PERITONE|DIALISI/.test(n)) return exact("90.16.25_7");
+      if (/24 ?H|24 ORE|GIORNALIER/.test(n)) return exact("90.16.3_3");
+      if (/ACR|ALBUMIN.?CREAT|RAPPORTO/.test(n)) return exact("90.16.3_7");
+      if (context?.urineCreatinineForAcr && !/MINZ|DROGHE|PERITONE|DIALISI/.test(n)) return exact("90.16.3_7");
       return { blocked: true, reason: "Creatinina urinaria senza tipologia prescrivibile univoca" };
     }
 
@@ -11198,6 +11259,8 @@ ${sourceText}
             "ref_unit": {
               "type": "string"
             },
+            "line_start": {"type":"integer","minimum":1},
+            "line_end": {"type":"integer","minimum":1},
             "raw_label": {
               "type": "string"
             }
@@ -11209,7 +11272,7 @@ ${sourceText}
             "ref_min",
             "ref_max",
             "ref_unit",
-            "raw_label"
+            "raw_label", "line_start", "line_end"
           ],
           "additionalProperties": false
         }
@@ -11287,7 +11350,7 @@ ${sourceText}
   function expandUnprescribedPayload(parsed, sourceLines) {
     const original = parsed && typeof parsed === "object" ? parsed : {};
     const p = { ...original,
-      r: (Array.isArray(original.r) ? original.r : []).map(row => Array.isArray(row) ? row : [row?.exam, row?.value, row?.unit, row?.ref_min, row?.ref_max, row?.ref_unit, row?.raw_label]),
+      r: (Array.isArray(original.r) ? original.r : []).map(row => Array.isArray(row) ? row : [row?.exam, row?.value, row?.unit, row?.ref_min, row?.ref_max, row?.ref_unit, row?.raw_label, row?.line_start, row?.line_end]),
       c: (Array.isArray(original.c) ? original.c : []).map(row => Array.isArray(row) ? row : [row?.kind, row?.label, row?.line_start, row?.line_end]),
       u: (Array.isArray(original.u) ? original.u : []).map(row => Array.isArray(row) ? row : [row?.text, row?.reason])
     };
@@ -11320,6 +11383,7 @@ ${sourceText}
             ref_max: String(row?.[4] || ""),
             ref_unit: String(row?.[5] || ""),
             raw_label: String(row?.[6] || ""),
+            line_start: row?.[7], line_end: row?.[8],
             _qwenUnprescribed: true
           }))
         : [],
@@ -11338,16 +11402,12 @@ ${sourceText}
     const results = (payload.results || []).filter(item => {
       const label = normalizeExamName(item.raw_label || item.exam || "");
       const value = String(item.value || "").trim();
-      const literalValue = value.replace(/^[<>\u2264\u2265]\s*/, "").replace(",", ".");
-      const present = /^[+-]?\d+(?:[.,]\d+)?$/.test(literalValue) && label && sourceLines.some((line, index) => {
-        if (!normalizeExamName(line).includes(label)) return false;
-        const direct = parseInlineSpecimenMeasurement(line);
-        if (direct) return Number(direct.value.replace(",", ".")) === Number(literalValue) && normalizeUnit(direct.unit) === normalizeUnit(item.unit);
-        const nearby = sourceLines.slice(index, index + 5);
-        const hasUnit = nearby.some(candidate => normalizeUnit(candidate).includes(normalizeUnit(item.unit)));
-        return !!item.unit && hasUnit && nearby.some(candidate =>
-          (candidate.replace(/,/g, ".").match(/[+-]?\d+(?:\.\d+)?/g) || []).some(number => Number(number) === Number(literalValue)));
-      });
+      const verified = validateAiMeasurementEvidence(item, sourceText);
+      const present = !!verified;
+      if (verified) {
+        Object.assign(item, verified);
+        if (verified._rangeRejected) sourceWarnings.push({text:item.raw_label,reason:"Intervallo normale IA non confermato sulla riga sorgente: limiti lasciati vuoti."});
+      }
       if (!present) {
         rejectedNumeric++;
         if (label.length >= 3 && normalized.includes(label)) sourceWarnings.push({
@@ -11384,7 +11444,7 @@ ${sourceText}
       acceptedNumeric: results.length, acceptedComplex: complex.length,
       rejectedNumeric, rejectedComplex, rejectedUncertain
     });
-    return { ...payload, results, complex, uncertain: [...uncertain, ...sourceWarnings] };
+    return { ...payload, report_date: validatedAiReportDate(payload.report_date, payload.report_date_evidence, sourceText), results, complex, uncertain: [...uncertain, ...sourceWarnings] };
   }
 
   async function extractUnprescribedWithQwen(reportText, progressCallback = null, options = {}) {
@@ -11406,7 +11466,7 @@ ${options?.residualOnly
 Formato structured output:
 - d = data di refertazione/validazione/firma/emissione YYYY-MM-DD o ""
 - de = breve evidenza della data
-- r = oggetti risultati numerici con exam, value, unit, ref_min, ref_max, ref_unit, raw_label (tutte stringhe).
+- r = oggetti risultati numerici con exam, value, unit, ref_min, ref_max, ref_unit, raw_label (tutte stringhe), line_start e line_end interi del solo blocco sorgente (massimo 4 righe).
 - c = oggetti referti complessi con kind, label, line_start, line_end. kind deve essere uno dei valori ammessi; righe intere numeriche.
 - u = oggetti elementi realmente incerti con text, reason. Non interpretare note generali del laboratorio come condizioni del paziente.
 mg/dl, mg/dL e MG/DL indicano la stessa unita: le maiuscole non sono ambiguita.
@@ -13366,6 +13426,18 @@ Per r usa solo il risultato corrente numerico e un range bilaterale chiaro. Non 
     return { items, uncertain };
   }
 
+  function prescriptionSelectionSupported(label, sourceText, selective) {
+    const wanted = normalizeExamName(label);
+    if (!wanted) return false;
+    const segments = String(sourceText || '').split(/\r?\n|;|\t+/).flatMap(line => line.split(/(?=\[[ xX]\]|[☐☑☒□✓✔])/));
+    return segments.some(segment => {
+      const marked = /^\s*(?:\[[xX]\]|[☑☒✓✔]|[xX]\s)/.test(segment);
+      if (selective && !marked) return false;
+      const normalized = normalizeExamName(segment.replace(/^\s*(?:\[[ xX]\]|[☐☑☒□✓✔]|[xX]\s)/, ''));
+      return (` ${normalized} `).includes(` ${wanted} `);
+    });
+  }
+
   function prescriptionLabelSupportedByText(label, sourceText) {
     const source = normalizeExamName(sourceText || "");
     const wanted = normalizeExamName(label || "");
@@ -13468,12 +13540,12 @@ Output compatto:
     const uncertain = [...payload.uncertain];
 
     for (const item of payload.items) {
-      if (prescriptionLabelSupportedByText(item.raw_label, text)) {
+      if (prescriptionSelectionSupported(item.raw_label, text, selective || /\[[ xX]\]|[☐☑☒□✓✔]/.test(text))) {
         filtered.push(item);
       } else {
         uncertain.push({
           text: item.raw_label,
-          reason: "Voce proposta da IA non rintracciabile con certezza nel testo incollato"
+          reason: "Nome o marcatura di selezione non confermati sulla stessa voce del testo"
         });
       }
     }
@@ -13520,6 +13592,19 @@ Output JSON compatto:
     );
 
     const payload = expandPrescriptionListPayload(extractJSONObject(content));
+    // Independent visual verification of each proposed row; unknown/empty never passes.
+    if (payload.items.length) {
+      const schema = {type:'object',properties:{rows:{type:'array',items:{type:'object',properties:{index:{type:'integer',enum:payload.items.map((_,index)=>index)},label:{type:'string'},marker:{type:'string',enum:['checked','plain','empty','uncertain']}},required:['index','label','marker'],additionalProperties:false}}},required:['rows'],additionalProperties:false};
+      const verification = extractJSONObject(await ollamaChat([{role:'user',images:[imageBase64],content:
+        'Verifica sulla immagine originale ogni voce candidata. Non fidarti della prima lettura. Restituisci una riga per ogni candidato, con index UGUALE all indice del candidato fornito (non la posizione nella pagina), label originale e marker. Se ci sono caselle: marker="checked" SOLO con spunta o X sulla stessa voce. Casella vuota: marker="empty". Segno ambiguo o voce assente: marker="uncertain". Solo se tutta la pagina e una lista senza caselle usa marker="plain". Candidati:\n' + payload.items.map((item,index)=>`${index}: ${item.raw_label}`).join('\n')}],null,1800,schema));
+      payload.items = payload.items.filter((item,index) => {
+        const matches = (verification.rows || []).filter(row=>row.index === index);
+        const row = matches.length === 1 ? matches[0] : null;
+        const accepted = row && ['checked','plain'].includes(row.marker) && normalizeExamName(row.label) === normalizeExamName(item.raw_label);
+        if (!accepted) payload.uncertain.push({text:item.raw_label,reason:'Selezione visiva non confermata nella seconda verifica della riga.'});
+        return accepted;
+      });
+    }
     progressCallback?.({ phase: "prescription_vision_done", label, count: payload.items.length });
     return payload;
   }
@@ -14864,6 +14949,7 @@ button:disabled {
     try {
       const { info } = await requestOllamaMetadata({ type: "OLLAMA_MODEL_INFO", model: name });
       if (info.completion === false) throw new Error("Questo modello non supporta l’analisi del testo. Scegli un modello di conversazione.");
+      if (info.thinkingOnly) throw new Error("Modello Thinking non compatibile: scegli una variante Instruct per usare IA senza ragionamento esteso.");
       CONFIG.aiModel = name;
       selectedAiModelInfo = info;
       invalidate();
@@ -14872,7 +14958,7 @@ button:disabled {
         : "Supporto immagini non dichiarato da questa versione di Ollama.";
       try {
         await chrome.storage.local.set({ [AI_MODEL_STORAGE_KEY]: name });
-        aiModelStatus.textContent = description;
+        aiModelStatus.textContent = `${info.variant || ""} · ${description}`;
       } catch {
         aiModelStatus.textContent = `${description} Scelta valida per questa pagina; non è stato possibile salvarla.`;
       }

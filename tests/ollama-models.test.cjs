@@ -145,3 +145,21 @@ test('model discovery cannot run while a workflow is busy', async () => {
   const { context, state } = panel(); vm.runInContext('isBusy=true', context);
   await context.refreshAiModels(); assert.equal(state.requests.length, 0);
 });
+
+test('P0 thinking-only metadata is visibly incompatible, Instruct remains usable', async()=>{
+ for(const [name,template,expected] of [['alias','qwen3-vl-thinking',true],['qwen3-vl:2b-instruct','qwen3-vl-instruct',false],['gpt-oss:20b','',true]]){
+ const {context}=worker(async()=>json({template,capabilities:['completion']}));
+ assert.equal((await context.getLocalOllamaModelInfo(name)).thinkingOnly,expected);
+ }
+});
+test('P0 unexpected thinking aborts before returning content, including a final unterminated event',async()=>{
+ for(const newline of ['\n','']){
+ const messages=[];const {context}=worker(async url=>url.endsWith('/show')?json({capabilities:['completion']}):{ok:true,body:new ReadableStream({start(c){c.enqueue(new TextEncoder().encode(JSON.stringify({message:{thinking:'unexpected',content:'{}'},done:true})+newline));c.close();}})});
+ await context.ollamaStreamChat({model:'custom',messages:[]},{postMessage:m=>messages.push(m)},'test',new AbortController());
+ assert.equal(messages.at(-1).type,'OLLAMA_ERROR');assert.match(messages.at(-1).message,/ragionamento/);
+ }
+});
+test('P0 synthetic JSON compatibility probe is cached only after success',async()=>{
+ let generations=0;const {context}=worker(async url=>url.endsWith('/show')?json({capabilities:['completion']}):(generations++,{ok:true,body:new ReadableStream({start(c){c.enqueue(new TextEncoder().encode('{"message":{"content":"{\\"ok\\":true}"},"done":true}\n'));c.close();}})}));
+ await context.verifyLocalModel('instruct');await context.verifyLocalModel('instruct');assert.equal(generations,1);
+});
