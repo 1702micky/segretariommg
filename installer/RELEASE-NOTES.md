@@ -1,9 +1,6 @@
-Segretario MMG 0.16.27
+Segretario MMG 0.16.28
 
-Include le migliorie P0/P1 della 0.16.26: controllo no-thinking, selezioni testuali/visive, prove sorgente dei risultati, convalida indipendente di range/date e correzioni per la matrice urinaria.
-
-- Chiarito nel prompt che line_start e line_end sono inclusivi: un esame sulla sola riga L2 deve indicare 2/2.
-- Richiesta la citazione completa della data; eventuale prefisso [Lx] accettato solo quando coincide con la riga sorgente indicata.
-- Vietata l'invenzione di un referto complesso a partire da un elenco di risultati numerici.
-- 122 test Node superati; test isolati installer e prove Ollama sintetiche. Nessuna interazione clinica in Eumed.
-- Dettagli e limiti: docs/AI-P0-P1-0.16.26.md.
+- Prompt condiviso per gli intervalli nei flussi con e senza prescrizioni.
+- Limiti singoli <, <=, ≤ salvati solo come massimo; >, >=, ≥ solo come minimo. Nessun minimo zero inventato.
+- Limiti numerici separati da valore e unita; intervalli ambigui o multipli lasciati vuoti.
+- 124 test Node superati, inclusi sei formati di soglia e controllo del contratto condiviso.

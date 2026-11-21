@@ -3,7 +3,7 @@
 
   // ============================================================
   // SEGRETARIO MMG
-  // Versione 0.16.27
+  // Versione 0.16.28
   //
   // - Estrazione con Qwen 3.5 4B locale
   // - Comunicazione diretta Ollama via service worker Chrome
@@ -5415,10 +5415,22 @@ ${numberedReportText}
     });
   }
 
+  function buildReferenceIntervalPrompt() {
+    return `INTERVALLI DI RIFERIMENTO (ref_min, ref_max, ref_unit):
+- ref_min e ref_max sono stringhe con SOLO numeri, senza <, >, <=, >=, unita o testo.
+- "0,67 - 1,17" -> ref_min="0,67", ref_max="1,17".
+- "<200", "<=200" o "≤200" -> ref_min="", ref_max="200".
+- ">40", ">=40" o "≥40" -> ref_min="40", ref_max="".
+- NON inventare zero come minimo per <200. NON scambiare una soglia del range con il risultato value.
+- ref_unit e l'unita del range; se identica al risultato copia unit. Se entrambi i limiti mancano usa ref_unit="".
+- Copia solo il range della stessa misurazione. Se assente, ambiguo o con piu fasce per eta/sesso, entrambi i limiti vuoti. Non interpretare note cliniche.`;
+  }
+
   function buildResidualResolverSystemPrompt() {
     return `Associa i risultati del referto ai target Eumed usando esclusivamente gli ID forniti. Rispondi in JSON conforme allo schema.
 Leggi tutto il documento, incluse urine e firma finale. Ometti target assenti, senza inventare risultati.
-Ogni risultato r contiene line_start e line_end del solo blocco sorgente numerato (massimo 4 righe, estremi INCLUSIVI: se il risultato e su L2, line_start=2 e line_end=2), id, raw_label (nome originale dell'esame, mai una unita), value, unit, ref_min, ref_max, ref_unit. Copia valore e unita dalla stessa riga del nome; non convertire. Per <40 usa ref_max=40, ref_min vuoto; per >50 usa ref_min=50, ref_max vuoto. Non scegliere intervalli da fasce multiple.
+Ogni risultato r contiene line_start e line_end del solo blocco sorgente numerato (massimo 4 righe, estremi INCLUSIVI: se il risultato e su L2, line_start=2 e line_end=2), id, raw_label (nome originale dell'esame, mai una unita), value, unit, ref_min, ref_max, ref_unit. Copia valore e unita dalla stessa riga del nome; non convertire.
+${buildReferenceIntervalPrompt()}
 Solo target marcati COMPLESSO possono andare in l con line_start e line_end; il blocco deve contenere il relativo esame. Ometti TSH/PSA se assenti. Non duplicare in r componenti di emocromo, urine complete o elettroforesi. Creatinina urinaria e rapporto ACR sono risultati autonomi anche dentro sezioni urine.
 Matrice [S]/[P]=siero/plasma, [U]=urine. U/L e una unita enzimatica. Creatinina sierica con eventuale eGFR richiede il valore della creatinina, mai eGFR. Creatinina urinaria per ACR richiede la concentrazione urinaria; il rapporto ACR/RAC in mg/g e distinto. Il target microalbuminuria per calcolo ACR puo ricevere il rapporto ACR come previsto dal gestionale.
 d e la data referto/firma/validazione ISO; de e la riga originale completa contenente quella data. Non usare nascita, accettazione o revisione. Data e ora possono precedere la firma sulla stessa riga. Se mancante usa stringhe vuote.
@@ -11491,7 +11503,8 @@ TRATTA SEMPRE COME COMPLESSI, MAI COME RISULTATI NUMERICI SINGOLI:
 - TUTTI GLI ESAMI SIEROLOGICI: anticorpi, IgG/IgM specifiche, sierodiagnosi, immunoblot, test infettivologici anticorpali/antigenici. Ogni prestazione sierologica distinta usa kind SIEROLOGIA.
 
 Per c usa le righe numerate del blocco; includi tutte le righe che servono a capire il risultato.
-Per r usa solo il risultato corrente numerico e un range bilaterale chiaro. Non scambiare range, date o valori storici per risultati.
+Per r usa solo il risultato corrente numerico. Non scambiare range, date o valori storici per risultati.
+${buildReferenceIntervalPrompt()}
 `;
 
       const user = `BLOCCO ${index + 1}/${chunks.length}\n\n${numbered}`;

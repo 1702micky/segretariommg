@@ -1,3 +1,10 @@
+Segretario MMG 0.16.28
+
+- Prompt condiviso per gli intervalli nei flussi con e senza prescrizioni.
+- Limiti singoli <, <=, ≤ salvati solo come massimo; >, >=, ≥ solo come minimo. Nessun minimo zero inventato.
+- Limiti numerici separati da valore e unita; intervalli ambigui o multipli lasciati vuoti.
+- 124 test Node superati, inclusi sei formati di soglia e controllo del contratto condiviso.
+
 Segretario MMG 0.16.27
 
 Include le migliorie P0/P1 della 0.16.26: controllo no-thinking, selezioni testuali/visive, prove sorgente dei risultati, convalida indipendente di range/date e correzioni per la matrice urinaria.

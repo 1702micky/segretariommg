@@ -1030,7 +1030,7 @@ test('administrative headers and already parsed HbA1c do not trigger residual AI
 });
 
 test('residual resolver uses named fields and one independent output contract',()=>{
- const c=load(['buildResidualResolverSchema','buildResidualResolverSystemPrompt']);const schema=c.buildResidualResolverSchema(['T1']);
+ const c=load(['buildResidualResolverSchema','buildReferenceIntervalPrompt','buildResidualResolverSystemPrompt']);const schema=c.buildResidualResolverSchema(['T1']);
  assert.equal(schema.properties.r.items.type,'object');assert.equal(schema.properties.l.items.type,'object');
  assert.ok(schema.properties.r.items.required.includes('raw_label'));assert.ok(schema.properties.r.items.required.includes('value'));
  assert.equal(schema.properties.r.items.additionalProperties,false);assert.ok(c.buildResidualResolverSystemPrompt().length<3000);
@@ -1149,3 +1149,17 @@ test('P1 date citations may retain a verified synthetic line prefix but never po
  assert.equal(c.validatedAiReportDate('2026-11-13','[L2] Data referto: 13/11/2026',source),'2026-11-13');
  assert.equal(c.validatedAiReportDate('2026-11-13','[L1] Data referto: 13/11/2026',source),'');
 });
+
+ test('both AI workflows share the same numeric interval contract',()=>{
+ const c=load(['buildReferenceIntervalPrompt','buildResidualResolverSystemPrompt']);
+ const contract=c.buildReferenceIntervalPrompt();assert.ok(c.buildResidualResolverSystemPrompt().includes(contract));
+ const unprescribed=source.slice(source.indexOf('  async function extractUnprescribedWithQwen'),source.indexOf('  function isKnownResidualNonExamLabel'));
+ assert.ok(unprescribed.includes('${buildReferenceIntervalPrompt()}'));assert.ok(!unprescribed.includes('un range bilaterale chiaro'));
+ });
+ test('single reference thresholds keep only their supported bound',()=>{
+ const c=evidenceContext();
+ for(const [tail,min,max] of [['<200','','200'],['<=200','','200'],['≤200','','200'],['>40','40',''],['>=40','40',''],['≥40','40','']]){
+ const x=c.validateAiMeasurementEvidence({raw_label:'HDL',value:'53',unit:'mg/dL',ref_min:min,ref_max:max,ref_unit:'mg/dL'},'HDL 53 mg/dL '+tail);
+ assert.ok(x);assert.equal(x._rangeRejected,false,tail);assert.equal(x.ref_min,min);assert.equal(x.ref_max,max);
+ }
+ });
