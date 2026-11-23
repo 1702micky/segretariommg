@@ -1,0 +1,42 @@
+name: Tests
+on:
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+permissions:
+  contents: read
+concurrency:
+  group: tests-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+jobs:
+  tests:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Unit tests
+        shell: pwsh
+        run: |
+          node --check segretario.js
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          node --check background.js
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          node --test tests/vaadin-regression.test.cjs tests/ollama-models.test.cjs tests/diagnostics.test.cjs tests/updates.test.cjs
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      # Test PowerShell isolati: non installano o avviano Ollama.
+      - name: Installer regression checks
+        shell: powershell
+        run: |
+          & .\tests\installer-wait.test.ps1
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          & .\tests\uninstall.test.ps1
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          python tests/download-progress.test.py
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          python tests/setup-ui.test.py
+          exit $LASTEXITCODE

@@ -9,7 +9,10 @@ concurrency:
   group: release
   cancel-in-progress: false
 jobs:
+  tests:
+    uses: ./.github/workflows/tests.yml
   release:
+    needs: tests
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -19,27 +22,6 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Tests
-        shell: pwsh
-        run: |
-          node --check segretario.js
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          node --check background.js
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          node --test tests/vaadin-regression.test.cjs tests/ollama-models.test.cjs tests/diagnostics.test.cjs tests/updates.test.cjs
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
-      # Test PowerShell isolati: non installano o avviano Ollama.
-      - name: Installer regression checks
-        shell: powershell
-        run: |
-          & .\tests\installer-wait.test.ps1
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          & .\tests\uninstall.test.ps1
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          python tests/download-progress.test.py
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          python tests/setup-ui.test.py
-          exit $LASTEXITCODE
       - name: Prepare PDF runtime
         shell: pwsh
         run: |
