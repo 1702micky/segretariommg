@@ -1,6 +1,5 @@
-Segretario MMG 0.16.29
+Segretario MMG 0.16.30
 
-- Riconoscimento del layout Cerba e lettura deterministica delle righe tabellari con unità mg/24h, g/24h e mmol/24h, anche nei PDF testuali.
-- Fosforo sierico associato al fosfato inorganico [S]; esami urinari delle 24 ore associati alle rispettive voci di matrice e raccolta.
-- Verifica IA delle righe con unità delle 24 ore e indicatore alto/basso prima del valore.
-- Intervalli descrittivi della vitamina D e degli ossalati lasciati vuoti quando non sono un singolo intervallo numerico.
+- Nei referti ULSS6, TSH standard e TSH Reflex in mU/L sono riconosciuti dalle righe tabellari senza una falsa incompatibilità di unità.
+- Amilasi totale sierica associata ad ALFA AMILASI [S]; se non prescritta in Eumed viene proposta nel blocco di trasferimento.
+- Il rapporto albumina/creatinina resta nel referto urine quando manca una prestazione autonoma prescritta, senza avvisi duplicati.

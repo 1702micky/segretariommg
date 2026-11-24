@@ -3,7 +3,7 @@
 
   // ============================================================
   // SEGRETARIO MMG
-  // Versione 0.16.29
+  // Versione 0.16.30
   //
   // - Estrazione con Qwen 3.5 4B locale
   // - Comunicazione diretta Ollama via service worker Chrome
@@ -402,6 +402,10 @@
 
   function getExamConcept(text) {
     const n = normalizeExamName(text);
+
+    if (/\bAMILASI\b/.test(n) && !/ISOENZIM|PANCREATIC|DRENAGGIO/.test(n)) {
+      return detectSpecimen(text) === "URINE" ? "AMYLASE_URINE" : "AMYLASE";
+    }
 
     if (/FOSFATASI ALCALINA|\bALP\b/.test(n) && /OSSE|OSSO/.test(n)) return "ALP_BONE";
     if (detectSpecimen(text) === "URINE") {
@@ -1818,6 +1822,17 @@
     // Servono soprattutto quando in Grid esistono prestazioni amministrative
     // più specifiche del nome usato dal laboratorio.
     const specialConcept = getExamConcept(query);
+
+    if (specialConcept === "AMYLASE" && !/ISOENZIM|PANCREATIC|DRENAGGIO/.test(q)) {
+      const entry = findCatalogEntryByCode("90.06.4_2");
+      if (entry) {
+        const matches = exams.filter(exam =>
+          specimenCompatible(query, exam) && getExamConcept(exam) === "AMYLASE"
+        );
+        if (matches.length === 1) return {success:true,exam:matches[0],method:"eumed-special-amylase",concept:"AMYLASE"};
+        if (!matches.length) return {success:false,reason:"known_not_in_grid",query,catalogEntry:entry};
+      }
+    }
 
     // v0.10.2: concept-first. Se in Eumed esiste una sola prestazione
     // con lo stesso concetto clinico, usala come target naturale.
@@ -6030,7 +6045,7 @@ ${numberedReportText}
 
   function isLikelyLabUnitToken(text) {
     const u = normalizeUnit(text).replace(/\s*crea(?:tinina)?$/i, "");
-    return /^(?:mg\/g|mg\/dl|mg\/l|mmol\/l|umol\/l|nmol\/l|ng\/ml|ng\/l|pg\/ml|ug\/l|ug\/dl|u\/l|ui\/l|meq\/l|mg\/24h|g\/24h|mmol\/24h|%|g\/dl|g\/l|10\^?[369]\/l|x10\^?[369]\/l|fl|pg)$/.test(u);
+    return /^(?:mg\/g|mg\/dl|mg\/l|mmol\/l|umol\/l|nmol\/l|ng\/ml|ng\/l|pg\/ml|ug\/l|ug\/dl|u\/l|ui\/l|mu\/l|miu\/l|mui\/l|meq\/l|mg\/24h|g\/24h|mmol\/24h|%|g\/dl|g\/l|10\^?[369]\/l|x10\^?[369]\/l|fl|pg)$/.test(u);
   }
 
   function isUrineComponentLabel(text) {
@@ -6630,6 +6645,9 @@ ${numberedReportText}
     const longKinds = new Set(
       (extraction.longReports || []).map(x => x.kind)
     );
+    const acrInUrineReport = (extraction.longReports || []).some(x =>
+      x.kind === "URINE" && /Rapporto\s+Alb\s*\/\s*Cre|\bRAC\b/i.test(x.text || "")
+    );
 
     const acceptedConcepts = new Set();
 
@@ -6675,6 +6693,7 @@ ${numberedReportText}
       if (isLongReportComponent(label, longKinds)) continue;
 
       const concept = getExamConcept(label);
+      if (concept === "ACR" && acrInUrineReport) continue;
       if (concept && acceptedConcepts.has(concept)) continue;
 
       // Se Qwen ha inventato una voce partendo dalla lista Grid e il nome non
@@ -7219,6 +7238,7 @@ ${sourceText}
 
     const allowed = {
       TSH: [
+        "mu/l",
         "uiu/ml", "uiu/l",
         "uui/ml", "uui/l",
         "miu/l", "miu/ml",
@@ -7260,6 +7280,7 @@ ${sourceText}
       PHOSPHATE: [
         "mg/dl", "mmol/l"
       ],
+      AMYLASE: ["u/l", "ui/l"],
       PTH: [
         "pg/ml", "ng/l", "pmol/l"
       ],
@@ -7585,6 +7606,9 @@ ${sourceText}
     const longKinds = new Set(
       (extraction.longReports || []).map(x => x.kind)
     );
+    const acrInUrineReport = (extraction.longReports || []).some(x =>
+      x.kind === "URINE" && /Rapporto\s+Alb\s*\/\s*Cre|\bRAC\b/i.test(x.text || "")
+    );
 
     const out = [];
     const seen = new Set();
@@ -7596,6 +7620,7 @@ ${sourceText}
       if (!text && !reason) continue;
 
       const nText = normalizeExamName(text);
+      if (acrInUrineReport && getExamConcept(text) === "ACR") continue;
       const nReason = normalizeExamName(reason);
       const all = `${nText} ${nReason}`;
 
@@ -8076,7 +8101,15 @@ ${sourceText}
     }
     if(kind==="URINE"){
       const section=sliceKnownSection(lines,line=>/^U[_ -]ESAME CHIMICO FISICO URINE/i.test(line),line=>/^IMPORTANTE:/i.test(line));
-      const filtered=section.filter(line=>!/(Rapporto Alb\/Cre|Fisiologico:|Moderatamente aumentato:|Severamente aumentato:)/i.test(line));
+      const hasRatioTarget=getAvailableExams().some(exam=>{
+        const n=normalizeExamName(exam);
+        return /RAPPORTO.*(?:ALBUMINA|ALB).*CREAT|\bRAC\b/.test(n) ||
+          (/\bACR\b/.test(n) && !/PER CALCOLO|MICROALBUMINURIA/.test(n));
+      });
+      const filtered=section.filter(line=>
+        (!/Rapporto Alb\/Cre/i.test(line) || !hasRatioTarget) &&
+        !/^(?:Fisiologico:|Moderatamente aumentato:|Severamente aumentato:)/i.test(line)
+      );
       return cleanupKnownLongReportLines(filtered).join("\n").trim();
     }
     return "";
@@ -10501,6 +10534,7 @@ ${sourceText}
     // varianti di matrice: la voce esatta deve prevalere sul fuzzy matching.
     const urine = detectSpecimen(query) === "URINE";
     const timed = /\b24\s*H\b|\b24\s*ORE\b|\bGIORNALIER/.test(n);
+    if (concept === "AMYLASE" && !urine) return exact("90.06.4_2");
     if (/^(?:FOSFORO|FOSFOREMIA|FOSFATEMIA|FOSFATO(?: INORGANICO)?)$/.test(n) && !urine) return exact("90.24.3_2");
     if (urine && /FOSFAT|FOSFORO/.test(n)) return exact(timed ? "90.24.3_4" : "90.24.3_3");
     if (urine && /ACIDO URICO|URATO|URICOSUR/.test(n)) return exact(timed ? "90.43.5_4" : "90.43.5_3");
@@ -12322,6 +12356,14 @@ ${buildReferenceIntervalPrompt()}
 
     const numeric = dedupeUnprescribedNumeric(numericCandidates, uncertain)
       .sort((a, b) => String(a.exam).localeCompare(String(b.exam), "it"));
+
+    const acrInUrineComplex = complex.some(item => item.complexKind === "URINE" &&
+      /Rapporto\s+Alb\s*\/\s*Cre|\bRAC\b/i.test(item.text || ""));
+    if (acrInUrineComplex) {
+      for (let i = uncertain.length - 1; i >= 0; i--) {
+        if (getExamConcept(uncertain[i]?.text || "") === "ACR") uncertain.splice(i, 1);
+      }
+    }
 
     // Se la riga tabellare è stata letta e associata deterministicamente,
     // un rifiuto successivo della proposta IA per la stessa etichetta non è

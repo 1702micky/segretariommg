@@ -307,6 +307,52 @@ test('timed urine measurements retain their source units and numeric ranges', ()
   }
 });
 
+test('ULSS6 serum amylase and TSH mU/L remain source-bound', () => {
+  const c = resolverContext();
+  c.getLongReportKind = () => '';
+  vm.runInContext(source.match(/  function specimenCompatible\([\s\S]*?\n  \}/)[0], c);
+  load(['normalizeUnit','normalizedUnitLoose','unitCompatibleWithConcept','normalizeOcrDisplayUnit',
+    'isLikelyLabUnitToken','detectUrineClusterRange','isUrineComponentLabel',
+    'parseBilateralRangeFromTail','shouldSuppressAutomaticRange','extractPaddleTabularResults',
+    'resolveExamName'], {}, c);
+  const rows = c.extractPaddleTabularResults([
+    'P-AMILASI TOTALE\t58\tU/L\t28 - 100',
+    'S-TSH\t2.47\tmU/L\t0.35 - 4.50',
+    'S-TSH REFLEX\t2.69\tmU/L\t0.35 - 4.50'
+  ].join('\n'));
+  assert.equal(rows.length, 3);
+  assert.equal(c.matchCatalogForCreation(rows[0].raw_label).entry.code, '90.06.4_2');
+  assert.equal(c.unitCompatibleWithConcept('TSH','mU/L'),true);
+  assert.equal(c.unitCompatibleWithConcept('TSH','ng/L'),false);
+  c.getAvailableExams = () => ['TIREOTROPINA (TSH'];
+  assert.equal(c.resolveExamName('S-TSH').exam,'TIREOTROPINA (TSH');
+  c.getAvailableExams = () => ['TIREOTROPINA [TSH] TEST REFLEX'];
+  assert.equal(c.resolveExamName('S-TSH REFLEX').exam,'TIREOTROPINA [TSH] TEST REFLEX');
+  c.getAvailableExams = () => ['TIREOTROPINA (TSH'];
+  assert.equal(c.resolveExamName('P-AMILASI TOTALE').reason,'known_not_in_grid');
+  const prepared=reportContext().prepareUnprescribedNumericCandidate({raw_label:'P-AMILASI TOTALE',value:'58',unit:'U/L',ref_min:'28',ref_max:'100',ref_unit:'U/L'},'');
+  assert.equal(prepared.success,true,JSON.stringify(prepared));
+  assert.equal(prepared.item.catalogCode,'90.06.4_2');
+});
+
+test('ULSS6 urine report keeps ACR only when no separate ratio target exists', () => {
+  const c = load(['normalizeExamName','getExamConcept','detectSpecimen','cleanReportLines',
+    'sliceKnownSection','cleanupKnownLongReportLines','buildUlss6LongReport',
+    'cleanModelLabLabel','cleanRejectedItems','cleanUncertainItems']);
+  c.getLongReportKind = () => '';
+  c.isLongReportComponent = () => false;
+  c.significantTokens = text => String(text).split(/\s+/);
+  const source='U_ESAME CHIMICO FISICO URINE\npH\t5.0\nRapporto Alb/Cre (RAC)\t<30\tmg/g Creat.\tFisiologico: 0 - 30\nGlucosio\t0\tmg/dL\nIMPORTANTE: nota';
+  c.getAvailableExams=()=>['ESAME URINE COMPLETO'];
+  const urine=c.buildUlss6LongReport(source,'URINE');
+  assert.match(urine,/Rapporto Alb\/Cre \(RAC\).*<30/);
+  const extraction={results:[],uncertain:[],longReports:[{kind:'URINE',text:urine}]};
+  assert.equal(c.cleanRejectedItems([{exam:'RAPPORTO ALBUMINA-CREATININA (ACR) URINE',raw_label:'Rapporto Alb/Cre (RAC)',value:'<30',reason:'Esame non presente in Eumed'}],source,extraction).length,0);
+  assert.equal(c.cleanUncertainItems([{text:'Rapporto Alb/Cre (RAC)',reason:'Esame non presente in Eumed'}],extraction).length,0);
+  c.getAvailableExams=()=>['ESAME URINE COMPLETO','RAPPORTO ALBUMINA-CREATININA (ACR) URINE'];
+  assert.doesNotMatch(c.buildUlss6LongReport(source,'URINE'),/Rapporto Alb\/Cre/);
+});
+
 test('the complete reported list resolves through the real resolver and real catalog', () => {
   const context = resolverContext();
   const labels = ['tsh', 'emocromo', 'glicemia', 'glicata', 'ast', 'alanina amino transferasi', 'vitamina D'];
@@ -643,6 +689,17 @@ test('copy transfer excludes existing exams and derived/unmatched data and prese
   assert.equal(glucose.valore,'94');assert.equal(glucose.unita,'mg/dL');assert.equal(glucose.min,'74');assert.equal(glucose.max,'106');
   const restored=c.parsePrescribedTransferText(text);
   assert.equal(restored.numeric.length,4);assert.equal(restored.reportDate,'2026-02-01');assert.equal(restored.stats.qwenUsed,false);
+});
+
+test('serum amylase absent from the prescribed grid enters the transfer once',()=>{
+  const c=transferContext();
+  load(['normalizeOcrDisplayUnit','isLikelyLabUnitToken','detectUrineClusterRange','isUrineComponentLabel'],{},c);
+  const source='P-AMILASI TOTALE\t58\tU/L\t28 - 100';
+  const payload=JSON.parse(c.buildPrescribedTransferText({reportDate:'2026-10-30',recognizedNotInGrid:[]},source));
+  assert.equal(payload.numerici.length,1);
+  assert.equal(payload.numerici[0].codice,'90.06.4_2');
+  assert.equal(payload.numerici[0].valore,'58');
+  assert.equal(payload.numerici[0].unita,'U/L');
 });
 
 test('transfer keeps complete complex reports and is accepted directly by unprescribed analysis',async()=>{
