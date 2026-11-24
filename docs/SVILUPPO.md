@@ -12,7 +12,9 @@ node --test tests/vaadin-regression.test.cjs tests/ollama-models.test.cjs tests/
 
 ## Installer e release
 
-Il workflow `.github/workflows/release.yml` prepara PDF.js e PaddleOCR, esegue i test, compila l’installer su Windows e pubblica gli asset della versione indicata in `manifest.json`. Non sovrascrive release esistenti.
+Il workflow `.github/workflows/tests.yml` esegue test unitari e controlli di regressione dell’installer su ogni pull request (e su richiesta manuale).
+
+Il workflow `.github/workflows/release.yml`, a ogni push su `main`, riusa gli stessi test, poi prepara PDF.js e PaddleOCR, compila l’installer su Windows e pubblica gli asset della versione indicata in `manifest.json`. Non sovrascrive release esistenti.
 
 Per una nuova versione incrementare `manifest.version` e mantenere `manifest.key`, necessario per preservare l’identità dell’estensione e la configurazione delle origini Ollama.
 
