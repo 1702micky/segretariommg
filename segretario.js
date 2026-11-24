@@ -3,7 +3,7 @@
 
   // ============================================================
   // SEGRETARIO MMG
-  // Versione 0.16.32
+  // Versione 0.16.33
   //
   // - Estrazione con Qwen 3.5 4B locale
   // - Comunicazione diretta Ollama via service worker Chrome
@@ -13568,6 +13568,14 @@ ${buildReferenceIntervalPrompt()}
     const text=String(sourceText || '').trim();
     if(!text) return {items:[],uncertain:[]};
     const selective=/[\u2610\u2611\u2612\u25a1\u2713\u2714\u2717\u2718]|\[[ xX]\]|^\s*[xX]\s+/m.test(text);
+    const plainLines = !selective && text.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+    if (plainLines && plainLines.length > 1 && plainLines.every(line => {
+      const match = resolvePrescriptionListItems([{raw_label:line}]);
+      return match.resolved.length === 1 && match.uncertain.length === 0;
+    })) {
+      progressCallback?.({phase:'prescription_qwen_done',count:plainLines.length});
+      return {items:plainLines.map(raw_label=>({raw_label,evidence:raw_label})),uncertain:[]};
+    }
     const chunks=splitPrescriptionAnalysisText(text), items=[], uncertain=[];
     let activeBatch=0;
     const read=async(chunk,depth=0)=>{
@@ -13791,6 +13799,22 @@ Output JSON compatto:
 
     const direct = directCatalogCodeFromPrescriptionLabel(raw);
     if (direct) return direct;
+    if (/^ELETTROFORESI DELLE PROTEINE(?: SIEROPROTEINE)?(?: S)?$/.test(n)) {
+      return findCatalogEntryByCode("90.38.4_0");
+    }
+    const immunoglobulin = n.match(/^IMMUNOGLOBULINE IG([AGM])(?: ([SU]))?$/);
+    if (immunoglobulin) {
+      const codes = {
+        "A U":"90.69.4_2", "G U":"90.69.4_3", "M U":"90.69.4_4",
+        "M S":"90.69.4_5", "G S":"90.69.4_6", "A S":"90.69.4_7"
+      };
+      return findCatalogEntryByCode(codes[`${immunoglobulin[1]} ${immunoglobulin[2] || "S"}`]);
+    }
+    const subclass = n.match(/^IGG SOTTOCLASSI SOTTOCLASSE IGG ?([1-4])(?: S)?$/);
+    if (subclass) return findCatalogEntryByCode(`90.68.4_${Number(subclass[1])+1}`);
+    if (/^IMMUNOFENOTIPIZZAZIONE LEUCO LINFOCITARIA(?: FINO A 8 ANTIGENI)?$/.test(n)) {
+      return findCatalogEntryByCode("91.47.C_2");
+    }
     const reviewedAliases = {
   "Colesterolo LDL": "90.13.C_0",
   "PSA totale": "90.56.9_0",
@@ -13961,6 +13985,21 @@ Output JSON compatto:
       let match = preferred
         ? { entry: preferred, score: 4000, preferred: true }
         : matchCatalogForCreation(label, context);
+
+      // Nella prescrizione una prestazione urinaria deve essere richiesta
+      // esplicitamente; senza matrice preferiamo la variante sierica.
+      if (!preferred && match?.entry && !detectSpecimen(label) &&
+          catalogEntrySpecimen(match.entry) === "URINE") {
+        const serum = labCatalog
+          .filter(entry => entry.parent_code === match.entry.parent_code &&
+            catalogEntrySpecimen(entry) === "SERUM" &&
+            creationCatalogScore(label, entry) >= 650)
+          .sort((a, b) => creationCatalogScore(label, b) - creationCatalogScore(label, a));
+        match = serum.length === 1 ||
+          (serum.length > 1 && creationCatalogScore(label, serum[0]) - creationCatalogScore(label, serum[1]) >= 55)
+          ? {entry:serum[0],score:creationCatalogScore(label,serum[0])}
+          : {blocked:true,reason:"Matrice urinaria non specificata nella richiesta: verificare la prestazione sierica corretta"};
+      }
 
       if (match?.blocked) {
         uncertain.push({ text: label, reason: match.reason || "Voce catalogo non univoca" });

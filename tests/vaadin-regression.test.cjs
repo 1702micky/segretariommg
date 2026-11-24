@@ -397,6 +397,45 @@ test('the complete reported list resolves through the real resolver and real cat
     ['90.41.8_0', '90.62.2_2', '90.27.1_2', '90.28.1_0', '90.09.2_0', '90.04.5_0', '90.44.6_2']);
 });
 
+test('plain immunology prescription list retains serum matrix and every requested row', async () => {
+  const c=resolverContext();
+  load(['extractPrescriptionListWithQwenText'],{},c);
+  const labels=[
+    'EMOCROMO COMPLETO CON FORMULA',
+    'ELETTROFORESI DELLE PROTEINE (Sieroproteine) [S]',
+    'IMMUNOGLOBULINE - IgG [S]',
+    'IMMUNOGLOBULINE - IgA [S]',
+    'IMMUNOGLOBULINE - IgM [S]',
+    'IgE TOTALI [S]',
+    'COMPLEMENTO: C3 [S]',
+    'COMPLEMENTO: C4 [S]',
+    'IgG SOTTOCLASSI - Sottoclasse IgG1 [S]',
+    'IgG SOTTOCLASSI - Sottoclasse IgG2 [S]',
+    'IgG SOTTOCLASSI - Sottoclasse IgG3 [S]',
+    'IgG SOTTOCLASSI - Sottoclasse IgG4 [S]',
+    'IMMUNOFENOTIPIZZAZIONE LEUCO/LINFOCITARIA',
+    'BETA 2 MICROGLOBULINA [S]'
+  ];
+  const payload=await c.extractPrescriptionListWithQwenText(labels.join('\n'));
+  assert.deepEqual(Array.from(payload.items,x=>x.raw_label),labels);
+  assert.equal(payload.uncertain.length,0);
+  const result=c.resolvePrescriptionListItems(payload.items);
+  assert.equal(result.uncertain.length,0,JSON.stringify(result.uncertain));
+  assert.deepEqual(Array.from(result.resolved,x=>x.catalogCode),[
+    '90.62.2_2','90.38.4_0','90.69.4_6','90.69.4_7','90.69.4_5',
+    '90.68.3_0','90.60.2_3','90.60.2_5','90.68.4_2','90.68.4_3',
+    '90.68.4_4','90.68.4_5','91.47.C_2','90.10.1_2'
+  ]);
+  assert.equal(c.preferredPrescriptionCatalogEntry('IMMUNOGLOBULINE - IgA [U]')?.code,'90.69.4_2');
+  assert.equal(c.preferredPrescriptionCatalogEntry('IMMUNOGLOBULINE - IgA [S]')?.code,'90.69.4_7');
+  assert.equal(c.preferredPrescriptionCatalogEntry('IMMUNOGLOBULINE - IgA')?.code,'90.69.4_7');
+  assert.equal(c.resolvePrescriptionListItems([{raw_label:'IMMUNOGLOBULINE - IgA'}]).resolved[0]?.catalogCode,'90.69.4_7');
+  assert.equal(c.resolvePrescriptionListItems([{raw_label:'IMMUNOGLOBULINE - IgA [U]'}]).resolved[0]?.catalogCode,'90.69.4_2');
+  assert.equal(c.preferredPrescriptionCatalogEntry('IgG SOTTOCLASSI - Sottoclasse IgG1')?.code,'90.68.4_2');
+  assert.equal(c.preferredPrescriptionCatalogEntry('ELETTROFORESI DELLE PROTEINE (Sieroproteine)')?.code,'90.38.4_0');
+  assert.equal(c.preferredPrescriptionCatalogEntry('IMMUNOFENOTIPIZZAZIONE DI BASE T/TBNK')?.code ?? null,null);
+});
+
 test('the seven infectious-screening labels resolve to five distinct catalog entries with visible HBV grouping',()=>{
   const c=resolverContext();
   const labels=['Antigene di superficie epat B (HBsAg)','Ac anti Core epat. B (HBcAb tot.)',
