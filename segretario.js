@@ -3,7 +3,7 @@
 
   // ============================================================
   // SEGRETARIO MMG
-  // Versione 0.16.31
+  // Versione 0.16.32
   //
   // - Estrazione con Qwen 3.5 4B locale
   // - Comunicazione diretta Ollama via service worker Chrome
@@ -10535,6 +10535,7 @@ ${sourceText}
     const urine = detectSpecimen(query) === "URINE";
     const timed = /\b24\s*H\b|\b24\s*ORE\b|\bGIORNALIER/.test(n);
     if (concept === "AMYLASE" && !urine) return exact("90.06.4_2");
+    if (concept === "ALP" && !/OSSE|OSSO|ISOENZIM/.test(n)) return exact("90.23.5_0");
     if (/^(?:FOSFORO|FOSFOREMIA|FOSFATEMIA|FOSFATO(?: INORGANICO)?)$/.test(n) && !urine) return exact("90.24.3_2");
     if (urine && /FOSFAT|FOSFORO/.test(n)) return exact(timed ? "90.24.3_4" : "90.24.3_3");
     if (urine && /ACIDO URICO|URATO|URICOSUR/.test(n)) return exact(timed ? "90.43.5_4" : "90.43.5_3");

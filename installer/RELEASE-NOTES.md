@@ -1,4 +1,4 @@
-Segretario MMG 0.16.31
+Segretario MMG 0.16.32
 
-- Nel riepilogo degli accertamenti prescritti, il rapporto albumina/creatinina già riportato nel referto urine non riappare come esame ambiguo o assente da Eumed.
-- Se il rapporto è prescritto come esame autonomo, la segnalazione resta visibile per la verifica.
+- P-ALP nei referti viene associato alla voce FOSFATASI ALCALINA nel catalogo prescrivibile per l'inserimento senza prescrizione.
+- L'amilasi pancreatica resta distinta dall'amilasi sierica totale: il risultato della frazione pancreatica non compila ALFA AMILASI [S].

@@ -335,6 +335,21 @@ test('ULSS6 serum amylase and TSH mU/L remain source-bound', () => {
   assert.equal(prepared.item.catalogCode,'90.06.4_2');
 });
 
+test('Padova pancreatic amylase stays distinct and P-ALP selects total alkaline phosphatase', () => {
+  const c = reportContext();
+  assert.equal(c.matchCatalogForCreation('P-AMILASI PANCREATICA')?.entry?.code,'90.06.5_0');
+  assert.equal(c.matchCatalogForCreation('P-AMILASI TOTALE')?.entry?.code,'90.06.4_2');
+  const pancreatic=c.prepareUnprescribedNumericCandidate({raw_label:'P-AMILASI PANCREATICA',value:'535',unit:'U/L',ref_min:'13',ref_max:'53',ref_unit:'U/L'},'');
+  assert.equal(pancreatic.success,true,JSON.stringify(pancreatic));
+  assert.equal(pancreatic.item.catalogCode,'90.06.5_0');
+  assert.equal(c.matchCatalogForCreation('P-ALP')?.entry?.code,'90.23.5_0');
+  const prepared=c.prepareUnprescribedNumericCandidate({raw_label:'P-ALP',value:'99',unit:'U/L',ref_min:'43',ref_max:'115',ref_unit:'U/L'},'');
+  assert.equal(prepared.success,true,JSON.stringify(prepared));
+  assert.equal(prepared.item.catalogCode,'90.23.5_0');
+  assert.equal(prepared.item.value,'99');
+  assert.equal(c.matchCatalogForCreation('FOSFATASI ALCALINA ISOENZIMA OSSEO')?.entry?.code,'90.24.1_0');
+});
+
 test('ULSS6 urine report keeps ACR only when no separate ratio target exists', () => {
   const c = load(['normalizeExamName','getExamConcept','detectSpecimen','cleanReportLines',
     'sliceKnownSection','cleanupKnownLongReportLines','buildUlss6LongReport',
