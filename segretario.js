@@ -3,7 +3,7 @@
 
   // ============================================================
   // SEGRETARIO MMG
-  // Versione 0.16.30
+  // Versione 0.16.31
   //
   // - Estrazione con Qwen 3.5 4B locale
   // - Comunicazione diretta Ollama via service worker Chrome
@@ -16629,6 +16629,23 @@ button:disabled {
       }
     }
 
+    const urineReportCoversAcr =
+      ![...targetSet].some(exam => {
+        const n = normalizeExamName(exam);
+        return /RAPPORTO.*(?:ALBUMINA|ALB).*CREAT|\bRAC\b/.test(n) ||
+          (/\bACR\b/.test(n) && !/PER CALCOLO|MICROALBUMINURIA/.test(n));
+      }) &&
+      longReports.some(item =>
+        item.kind === "URINE" &&
+        /Rapporto\s+Alb\s*\/\s*Cre|\bRAC\b/i.test(item.text || "")
+      );
+
+    function itemCoveredByAcceptedLongReport(item) {
+      if (!urineReportCoversAcr) return false;
+      return [item?.exam, item?.text, item?.raw_label, item?.catalogName]
+        .some(label => label && getExamConcept(label) === "ACR");
+    }
+
     function itemCoveredByAcceptedResult(item) {
       const itemText =
         `${item?.exam || ""} ${item?.text || ""} ` +
@@ -16706,7 +16723,8 @@ button:disabled {
         ...(parserExtraction?.recognizedNotInGrid || []),
         ...(hybridExtraction?.recognizedNotInGrid || [])
       ]).filter(
-        item => !itemCoveredByAcceptedResult(item)
+        item => !itemCoveredByAcceptedResult(item) &&
+          !itemCoveredByAcceptedLongReport(item)
       );
 
     const seenAmbiguous = new Set();
@@ -16718,7 +16736,8 @@ button:disabled {
     ]) {
       // Se il parser deterministico ha già fornito il risultato accettato,
       // non mostrare come ambiguità il rumore generato dal secondo lettore.
-      if (itemCoveredByAcceptedResult(item)) continue;
+      if (itemCoveredByAcceptedResult(item) ||
+          itemCoveredByAcceptedLongReport(item)) continue;
 
       const key = normalizeExamName(
         `${item?.text || item?.exam || ""} ${item?.reason || ""}`
@@ -16757,6 +16776,7 @@ button:disabled {
         .filter(
           item =>
             !itemCoveredByAcceptedResult(item) &&
+            !itemCoveredByAcceptedLongReport(item) &&
             !isBilirubinNoise(item)
         );
 

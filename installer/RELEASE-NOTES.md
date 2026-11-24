@@ -1,5 +1,4 @@
-Segretario MMG 0.16.30
+Segretario MMG 0.16.31
 
-- Nei referti ULSS6, TSH standard e TSH Reflex in mU/L sono riconosciuti dalle righe tabellari senza una falsa incompatibilità di unità.
-- Amilasi totale sierica associata ad ALFA AMILASI [S]; se non prescritta in Eumed viene proposta nel blocco di trasferimento.
-- Il rapporto albumina/creatinina resta nel referto urine quando manca una prestazione autonoma prescritta, senza avvisi duplicati.
+- Nel riepilogo degli accertamenti prescritti, il rapporto albumina/creatinina già riportato nel referto urine non riappare come esame ambiguo o assente da Eumed.
+- Se il rapporto è prescritto come esame autonomo, la segnalazione resta visibile per la verifica.

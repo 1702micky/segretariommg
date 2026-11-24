@@ -353,6 +353,26 @@ test('ULSS6 urine report keeps ACR only when no separate ratio target exists', (
   assert.doesNotMatch(c.buildUlss6LongReport(source,'URINE'),/Rapporto Alb\/Cre/);
 });
 
+test('merged prescribed reading does not revive ACR warnings already in urine report', () => {
+  const c = load(['normalizeExamName','detectSpecimen','getExamConcept',
+    'getLongReportKind','dedupeRecognizedNotInGrid','cloneResultWithSource',
+    'enrichEquivalentResult','extractionHasAmbiguityForExam','mergeIndependentReadings']);
+  const urineExam = 'ESAME URINE COMPLETO';
+  const urine = {exam:urineExam,kind:'URINE',text:'U_ESAME CHIMICO FISICO URINE\nRapporto Alb/Cre (RAC) <30 mg/g Creat.'};
+  const parser = {results:[],longReports:[urine],recognizedNotInGrid:[],uncertain:[],rejected:[]};
+  const hybrid = {results:[],longReports:[],
+    recognizedNotInGrid:[{raw_label:'Rapporto Alb/Cre (RAC)',value:'<30'}],
+    uncertain:[{text:'Rapporto Alb/Cre (RAC)',reason:'Esame non presente in Eumed'}],
+    rejected:[{exam:'RAPPORTO ALBUMINA-CREATININA (ACR) URINE',raw_label:'Rapporto Alb/Cre (RAC)',reason:'Esame non presente in Eumed'}]};
+  const merged = c.mergeIndependentReadings(parser,hybrid,[urineExam]);
+  assert.equal(merged.recognizedNotInGrid.length,0);
+  assert.equal(merged.uncertain.length,0);
+  assert.equal(merged.rejected.length,0);
+  const separate = c.mergeIndependentReadings(parser,hybrid,[urineExam,'RAPPORTO ALBUMINA-CREATININA (ACR) URINE']);
+  assert.equal(separate.uncertain.length,1);
+  assert.equal(separate.rejected.length,1);
+});
+
 test('the complete reported list resolves through the real resolver and real catalog', () => {
   const context = resolverContext();
   const labels = ['tsh', 'emocromo', 'glicemia', 'glicata', 'ast', 'alanina amino transferasi', 'vitamina D'];
