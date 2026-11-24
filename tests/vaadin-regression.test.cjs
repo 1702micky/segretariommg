@@ -258,6 +258,55 @@ function resolverContext() {
   return context;
 }
 
+test('tabular chemistry keeps serum phosphate and timed urine assays distinct', () => {
+  const c = resolverContext();
+  load(['detectKnownLabLayout'], {reportContainsLongReportCluster:()=>false}, c);
+  assert.equal(c.detectKnownLabLayout('Cerba HealthCare Veneto\nEsame Risultato U.M. Valori di Riferimento\nCHIMICA CLINICA'), 'CERBA_HEALTHCARE');
+  c.getLongReportKind = () => '';
+  load(['normalizeUnit', 'normalizedUnitLoose', 'unitCompatibleWithConcept',
+    'normalizeOcrDisplayUnit', 'isLikelyLabUnitToken', 'detectUrineClusterRange',
+    'isUrineComponentLabel', 'parseBilateralRangeFromTail', 'shouldSuppressAutomaticRange',
+    'extractPaddleTabularResults'], {}, c);
+  const source = [
+    'Fosforo\t2,8\tmg/dl\t2,5 - 4,5',
+    'Vitamina D (25 OH)\t30,2\tμg/l\tInsufficiente: 4 - 30',
+    'Acido Urico Urinario 24h\t689\tmg/24h\t250 - 750',
+    'Fosfato Inorganico Urinario 24h\t1,0\tg/24h\t0,4 - 1,3',
+    'Calcio Urinario 24h\t↑\t330\tmg/24h\t100 - 300',
+    'Acido Citrico Urinario 24h\t↓\t1,1\tmmol/24h\t2,0 - 4,0',
+    'Acido Ossalico Urinario\t36\tmg/l\tPopolazione Generale: < 50.0'
+  ].join('\n');
+  const rows = c.extractPaddleTabularResults(source);
+  assert.equal(rows.length, 7);
+  assert.deepEqual(Array.from(rows, row => row.value), ['2,8','30,2','689','1,0','330','1,1','36']);
+  assert.equal(rows[1].ref_min, '');
+  assert.equal(rows[6].ref_max, '');
+  assert.deepEqual(Array.from(rows, row => c.matchCatalogForCreation(row.raw_label)?.entry?.code),
+    ['90.24.3_2','90.44.6_2','90.43.5_4','90.24.3_4','90.11.4_3','90.02.2_3','90.35.3_0']);
+  for (const [label, target] of [
+    ['Acido Urico Urinario 24h','URATO (ACIDO URICO) [U] 24H'],
+    ['Fosfato Inorganico Urinario 24h','FOSFATO INORGANICO [U] 24H'],
+    ['Calcio Urinario 24h','CALCIO TOTALE [U] 24H'],
+    ['Acido Citrico Urinario 24h','ACIDO CITRICO [U] 24H']
+  ]) assert.equal(c.getExamConcept(label), c.getExamConcept(target), label);
+});
+
+test('timed urine measurements retain their source units and numeric ranges', () => {
+  const c = reportContext();
+  for (const [raw_label, value, unit, code] of [
+    ['Acido Urico Urinario 24h','689','mg/24h','90.43.5_4'],
+    ['Fosfato Inorganico Urinario 24h','1,0','g/24h','90.24.3_4'],
+    ['Calcio Urinario 24h','330','mg/24h','90.11.4_3'],
+    ['Acido Citrico Urinario 24h','1,1','mmol/24h','90.02.2_3'],
+    ['Acido Ossalico Urinario','36','mg/l','90.35.3_0']
+  ]) {
+    const result = c.prepareUnprescribedNumericCandidate({raw_label,value,unit,ref_min:'',ref_max:'',ref_unit:''},'');
+    assert.equal(result.success,true,JSON.stringify(result));
+    assert.equal(result.item.catalogCode,code);
+    assert.equal(result.item.unit,unit);
+  }
+});
+
 test('the complete reported list resolves through the real resolver and real catalog', () => {
   const context = resolverContext();
   const labels = ['tsh', 'emocromo', 'glicemia', 'glicata', 'ast', 'alanina amino transferasi', 'vitamina D'];
@@ -1090,6 +1139,14 @@ test('P1 evidence supports numeric continuations, decimal commas and one-sided l
  const result=c.validateAiMeasurementEvidence({raw_label:'ALT',value:'14.5',unit:'U/L',ref_max:'40'},'ALT\n14,5\nU/L\n<40');
  assert.equal(result.value,'14.5');assert.equal(result.ref_max,'40');
  assert.equal(c.validateAiMeasurementEvidence({raw_label:'AST',value:'14',unit:'U/L'},'AST\nALT 14 U/L'),null);
+});
+test('AI evidence accepts a verified 24-hour unit and a flag before the value',()=>{
+ const c=evidenceContext();
+ const source='Fosfato Inorganico Urinario 24h\t1,0\tg/24h\t0,4 - 1,3\nCalcio Urinario 24h\t↑\t330\tmg/24h\t100 - 300';
+ const phosphate=c.validateAiMeasurementEvidence({raw_label:'Fosfato Inorganico Urinario 24h',value:'1,0',unit:'g/24h',ref_min:'0,4',ref_max:'1,3',ref_unit:'g/24h',line_start:1,line_end:1},source);
+ const calcium=c.validateAiMeasurementEvidence({raw_label:'Calcio Urinario 24h',value:'330',unit:'mg/24h',ref_min:'100',ref_max:'300',ref_unit:'mg/24h',line_start:2,line_end:2},source);
+ assert.equal(phosphate?.unit,'g/24h');assert.equal(calcium?.value,'330');
+ assert.equal(c.validateAiMeasurementEvidence({raw_label:'Calcio Urinario 24h',value:'300',unit:'mg/24h',line_start:2,line_end:2},source),null);
 });
 test('P1 dates normalize format but require the same explicit report date in source',()=>{
  const c=evidenceContext(),source='Data referto: 13/11/2026\nData nascita: 10/10/1980';

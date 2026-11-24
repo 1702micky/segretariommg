@@ -3,7 +3,7 @@
 
   // ============================================================
   // SEGRETARIO MMG
-  // Versione 0.16.28
+  // Versione 0.16.29
   //
   // - Estrazione con Qwen 3.5 4B locale
   // - Comunicazione diretta Ollama via service worker Chrome
@@ -404,9 +404,12 @@
     const n = normalizeExamName(text);
 
     if (/FOSFATASI ALCALINA|\bALP\b/.test(n) && /OSSE|OSSO/.test(n)) return "ALP_BONE";
-    if (/^U\b|\bURIN|\bU 24H/.test(n)) {
+    if (detectSpecimen(text) === "URINE") {
       if (/CALCIO|CALCIUR/.test(n)) return "CALCIUM_URINE";
       if (/FOSFAT[OI]|FOSFORO|FOSFATUR/.test(n)) return "PHOSPHATE_URINE";
+      if (/ACIDO URICO|URATO|URICOSUR/.test(n)) return "URIC_ACID_URINE";
+      if (/ACIDO CITRICO|CITRAT/.test(n)) return "CITRATE_URINE";
+      if (/ACIDO OSSALICO|OSSALAT/.test(n)) return "OXALATE_URINE";
     }
 
     // Creatinine used to calculate ACR is a separate concentration result.
@@ -5329,7 +5332,7 @@ ${numberedReportText}
     if (!line || !Number.isInteger(Number(item.line_start))) return String(item.raw_label || '');
     const escapedUnit = String(item.unit || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     if (!escapedUnit) return String(item.raw_label || '');
-    const match = line.match(new RegExp('^(.+?)\\s+([<>≤≥]?\\s*[+-]?\\d+(?:[.,]\\d+)?)\\s*\\*?\\s*' + escapedUnit + '(?:\\s|$)', 'i'));
+    const match = line.match(new RegExp('^(.+?)\\s+(?:[↑↓]\\s*)?([<>≤≥]?\\s*[+-]?\\d+(?:[.,]\\d+)?)\\s*\\*?\\s*' + escapedUnit + '(?:\\s|$)', 'i'));
     const canonical = value => String(value || '').replace(/\s/g,'').replace(',','.');
     return match && canonical(match[2]) === canonical(item.value) ? match[1].trim() : String(item.raw_label || '');
   }
@@ -5354,7 +5357,7 @@ ${numberedReportText}
       const position = lines[start].toLocaleLowerCase().indexOf(label.toLocaleLowerCase());
       if (position < 0) continue;
       const tail = quote.slice(position + label.length).replace(/^\s*[:=]?\s*/, '');
-      const measurement = tail.match(/^\s*([<>≤≥]?\s*[+-]?\d+(?:[.,]\d+)?)\s*\*?\s*([^\s\d]+(?:\s*\/\s*[^\s\d]+)?)\s*([\s\S]*)$/);
+      const measurement = tail.match(/^\s*(?:[↑↓]\s*)?([<>≤≥]?\s*[+-]?\d+(?:[.,]\d+)?)\s*\*?\s*([^\s]+)\s*([\s\S]*)$/);
       if (!measurement) continue;
       const canonical = value => String(value || '').replace(/\s/g, '').replace(',', '.').replace('≤','<=').replace('≥','>=');
       if (canonical(measurement[1]) !== canonical(item.value) || normalizeUnit(measurement[2]) !== normalizeUnit(item.unit)) continue;
@@ -6027,7 +6030,7 @@ ${numberedReportText}
 
   function isLikelyLabUnitToken(text) {
     const u = normalizeUnit(text).replace(/\s*crea(?:tinina)?$/i, "");
-    return /^(?:mg\/g|mg\/dl|mg\/l|mmol\/l|umol\/l|nmol\/l|ng\/ml|ng\/l|pg\/ml|ug\/l|ug\/dl|u\/l|ui\/l|meq\/l|%|g\/dl|g\/l|10\^?[369]\/l|x10\^?[369]\/l|fl|pg)$/.test(u);
+    return /^(?:mg\/g|mg\/dl|mg\/l|mmol\/l|umol\/l|nmol\/l|ng\/ml|ng\/l|pg\/ml|ug\/l|ug\/dl|u\/l|ui\/l|meq\/l|mg\/24h|g\/24h|mmol\/24h|%|g\/dl|g\/l|10\^?[369]\/l|x10\^?[369]\/l|fl|pg)$/.test(u);
   }
 
   function isUrineComponentLabel(text) {
@@ -6066,8 +6069,7 @@ ${numberedReportText}
       .replace(/\r/g, "")
       .split("\n");
 
-    // Il parser entra in gioco solo quando Paddle ha realmente ricostruito
-    // colonne tramite TAB. Non modifica i normali PDF.js testuali.
+    // Sia Paddle sia PDF.js ricostruiscono colonne tramite TAB.
     if (!lines.some(line => line.includes("\t"))) return [];
 
     const urineRange = detectUrineClusterRange(lines);
@@ -6127,14 +6129,16 @@ ${numberedReportText}
       }
 
       const concept = getExamConcept(label);
-      const catalog = matchCatalog(label);
+      const catalog = matchCatalogForCreation(label);
 
-      if (!concept && !(catalog && catalog.score >= 900)) continue;
+      if (!concept && !(catalog?.entry && catalog.score >= 900)) continue;
 
       const value = cells[valueIndex];
       const unit = normalizeOcrDisplayUnit(cells[unitIndex].replace(/\s+crea(?:t(?:inina)?)?\.?$/i, ""));
       const tail = cells.slice(unitIndex + 1).join(" ");
-      const range = parseBilateralRangeFromTail(tail);
+      const range = !shouldSuppressAutomaticRange(concept) &&
+        /^[+-]?\d+(?:[.,]\d+)?\s*[-–]\s*[+-]?\d+(?:[.,]\d+)?$/.test(tail)
+        ? parseBilateralRangeFromTail(tail) : null;
 
       if (
         concept &&
@@ -7666,6 +7670,8 @@ ${sourceText}
   // v0.9.0 - parser deterministici per i tre laboratori principali.
   function detectKnownLabLayout(reportText) {
     const n = normalizeExamName(reportText);
+    if (n.includes("CERBA HEALTHCARE") && n.includes("CHIMICA CLINICA") &&
+        n.includes("VALORI DI RIFERIMENTO")) return "CERBA_HEALTHCARE";
     if (n.includes("SYNLAB DATA MEDICA") || (n.includes("WWW SYNLAB IT") && n.includes("DATA REFERTO"))) return "SYNLAB_DATA_MEDICA";
     if ((n.includes("AZIENDA OSPEDALE UNIVERSITA DI PADOVA") || n.includes("U O C MEDICINA DI LABORATORIO")) && n.includes("COSTITUENTE") && n.includes("INT DI RIFERIMENTO")) return "AOU_PADOVA";
     // Schiavonia può comparire come Azienda ULSS 6 Euganea oppure con il nome
@@ -8135,7 +8141,7 @@ ${sourceText}
     if(layout==="ULSS6_SCHIAVONIA")return buildUlss6LongReport(reportText,kind);
     return "";
   }
-  function getKnownLayoutDisplayName(layout){if(layout==="INLINE_CBC_CHEMISTRY")return "Tabella emocromo / chimica clinica";if(layout==="SYNLAB_DATA_MEDICA")return "SYNLAB / Data Medica";if(layout==="AOU_PADOVA")return "AOU Padova";if(layout==="ULSS6_SCHIAVONIA")return "ULSS 6 / Schiavonia";return "";}
+  function getKnownLayoutDisplayName(layout){if(layout==="INLINE_CBC_CHEMISTRY")return "Tabella emocromo / chimica clinica";if(layout==="CERBA_HEALTHCARE")return "Cerba HealthCare";if(layout==="SYNLAB_DATA_MEDICA")return "SYNLAB / Data Medica";if(layout==="AOU_PADOVA")return "AOU Padova";if(layout==="ULSS6_SCHIAVONIA")return "ULSS 6 / Schiavonia";return "";}
 
   function sourceSupportScoreForResult(item, reportText) {
     const report = normalizeExamName(reportText);
@@ -8539,6 +8545,7 @@ ${sourceText}
       CREATININE:["CREATININA"],
       HBA1C:["HBA1C","GLICATA"],
       CALCIUM_TOTAL:["CALCIO"],
+      CALCIUM_URINE:["CALCIO URINARIO","CALCIURIA","CALCIO"],
       CHOLESTEROL_TOTAL:["COLESTEROLO TOTALE","COLESTEROLO"],
       HDL:["HDL"],
       LDL:["LDL"],
@@ -8548,6 +8555,7 @@ ${sourceText}
       FERRITIN:["FERRITINA"],
       VITAMIN_D:["VITAMINA D","25 OH","25OH"],
       PHOSPHATE:["FOSFATO","FOSFATI","FOSFORO"],
+      PHOSPHATE_URINE:["FOSFATO INORGANICO URINARIO","FOSFATURIA","FOSFATO"],
       PTH:["PTH","PARATORMONE"],
       BILIRUBIN_TOTAL:["BILIRUBINA TOTALE","BILIRUBINA"],
       PCR:["PCR","PROTEINA C REATTIVA"],
@@ -8562,6 +8570,9 @@ ${sourceText}
       BNP:["BNP","NT PROBNP"],
       UREA:["UREA","AZOTEMIA"],
       URIC_ACID:["ACIDO URICO","URATO"],
+      URIC_ACID_URINE:["ACIDO URICO URINARIO","URICOSURIA","URATO"],
+      CITRATE_URINE:["ACIDO CITRICO URINARIO","CITRATO"],
+      OXALATE_URINE:["ACIDO OSSALICO URINARIO","OSSALATI"],
       SODIUM:["SODIO"],
       POTASSIUM:["POTASSIO"],
       CHLORIDE:["CLORO","CLORURO"],
@@ -10486,6 +10497,17 @@ ${sourceText}
       return entry ? { entry, score: 3000, preferred: true } : null;
     };
 
+    // Queste denominazioni condividono parole con prestazioni genetiche e con
+    // varianti di matrice: la voce esatta deve prevalere sul fuzzy matching.
+    const urine = detectSpecimen(query) === "URINE";
+    const timed = /\b24\s*H\b|\b24\s*ORE\b|\bGIORNALIER/.test(n);
+    if (/^(?:FOSFORO|FOSFOREMIA|FOSFATEMIA|FOSFATO(?: INORGANICO)?)$/.test(n) && !urine) return exact("90.24.3_2");
+    if (urine && /FOSFAT|FOSFORO/.test(n)) return exact(timed ? "90.24.3_4" : "90.24.3_3");
+    if (urine && /ACIDO URICO|URATO|URICOSUR/.test(n)) return exact(timed ? "90.43.5_4" : "90.43.5_3");
+    if (urine && /CALCIO|CALCIUR/.test(n) && timed) return exact("90.11.4_3");
+    if (urine && /ACIDO CITRICO|CITRAT/.test(n) && timed) return exact("90.02.2_3");
+    if (urine && /ACIDO OSSALICO|OSSALAT/.test(n)) return exact("90.35.3_0");
+
     if (/COLESTEROLO NON HDL/.test(n)) return { blocked: true, reason: "Colesterolo non-HDL: dato derivato senza prestazione autonoma univoca nel catalogo. Consulta il valore nel referto originale." };
     if (detectSpecimen(query) !== "URINE" && /^COLESTEROLO(?: TOTALE)?(?: S)?$/.test(stripSpecimenPrefix(query))) return exact("90.14.3_0");
 
@@ -12300,6 +12322,16 @@ ${buildReferenceIntervalPrompt()}
 
     const numeric = dedupeUnprescribedNumeric(numericCandidates, uncertain)
       .sort((a, b) => String(a.exam).localeCompare(String(b.exam), "it"));
+
+    // Se la riga tabellare è stata letta e associata deterministicamente,
+    // un rifiuto successivo della proposta IA per la stessa etichetta non è
+    // più un esame mancante. Conserviamo gli altri avvisi.
+    const verifiedLabels = new Set(numeric.filter(item => item.source === "parser")
+      .map(item => normalizeExamName(item.raw_label)));
+    for (let i = uncertain.length - 1; i >= 0; i--) {
+      if (/Risultato o unita proposti dall'IA non confermati|Intervallo normale IA non confermato/.test(uncertain[i]?.reason || "") &&
+          verifiedLabels.has(normalizeExamName(uncertain[i]?.text || ""))) uncertain.splice(i, 1);
+    }
 
     complex.sort((a, b) => String(a.exam).localeCompare(String(b.exam), "it"));
 
