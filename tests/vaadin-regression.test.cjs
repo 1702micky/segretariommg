@@ -436,6 +436,40 @@ test('plain immunology prescription list retains serum matrix and every requeste
   assert.equal(c.preferredPrescriptionCatalogEntry('IMMUNOFENOTIPIZZAZIONE DI BASE T/TBNK')?.code ?? null,null);
 });
 
+test('plain chemistry and coagulation list expands only independently resolved exams', async () => {
+  const c=resolverContext();
+  load(['extractPrescriptionListWithQwenText'],{},c);
+  const source=['PTT','Glicemia','Azotemia','sodio, potassio, cloro',
+    'GOT e GPT','CPK','Colinesterasi','Creatinina'].join('\n\n');
+  const payload=await c.extractPrescriptionListWithQwenText(source);
+  assert.deepEqual(Array.from(payload.items,x=>x.raw_label),[
+    'PTT','Glicemia','Azotemia','sodio','potassio','cloro',
+    'GOT','GPT','CPK','Colinesterasi','Creatinina'
+  ]);
+  assert.equal(payload.uncertain.length,0);
+  const resolved=c.resolvePrescriptionListItems(payload.items);
+  assert.equal(resolved.uncertain.length,0,JSON.stringify(resolved.uncertain));
+  assert.deepEqual(Array.from(resolved.resolved,x=>x.catalogCode),[
+    '90.76.1_0','90.27.1_2','90.44.1_6','90.40.4_2','90.37.4_2',
+    '90.13.3_2','90.09.2_0','90.04.5_0','90.15.4_2','90.14.4_0','90.16.3_2'
+  ]);
+  assert.equal(c.preferredPrescriptionCatalogEntry('LIQUIDO AMNIOTICO ENZIMI - ACETIL-COLINESTERASI')?.code ?? null,null);
+});
+
+test('HIV1/2 in a plain infectious screening list selects the combined test', async () => {
+  const c=resolverContext();
+  load(['extractPrescriptionListWithQwenText'],{},c);
+  const labels=['HBV Reflex','HCV','HIV1/2','Ab Anti Treponema Pallidum'];
+  const payload=await c.extractPrescriptionListWithQwenText(labels.join('\n'));
+  assert.deepEqual(Array.from(payload.items,x=>x.raw_label),labels);
+  const result=c.resolvePrescriptionListItems(payload.items);
+  assert.equal(result.uncertain.length,0,JSON.stringify(result.uncertain));
+  assert.deepEqual(Array.from(result.resolved,x=>x.catalogCode),[
+    '91.18.6_0','91.19.5_0','91.23.F_0','91.10.B_2'
+  ]);
+  assert.equal(c.preferredPrescriptionCatalogEntry('HIV1/2-DNA'),null);
+});
+
 test('the seven infectious-screening labels resolve to five distinct catalog entries with visible HBV grouping',()=>{
   const c=resolverContext();
   const labels=['Antigene di superficie epat B (HBsAg)','Ac anti Core epat. B (HBcAb tot.)',

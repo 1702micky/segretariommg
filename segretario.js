@@ -3,7 +3,7 @@
 
   // ============================================================
   // SEGRETARIO MMG
-  // Versione 0.16.34
+  // Versione 0.16.35
   //
   // - Estrazione con Qwen 3.5 4B locale
   // - Comunicazione diretta Ollama via service worker Chrome
@@ -13565,11 +13565,16 @@ ${buildReferenceIntervalPrompt()}
     const text=String(sourceText || '').trim();
     if(!text) return {items:[],uncertain:[]};
     const selective=/[\u2610\u2611\u2612\u25a1\u2713\u2714\u2717\u2718]|\[[ xX]\]|^\s*[xX]\s+/m.test(text);
-    const plainLines = !selective && text.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
-    if (plainLines && plainLines.length > 1 && plainLines.every(line => {
+    const resolvesOne = line => {
       const match = resolvePrescriptionListItems([{raw_label:line}]);
       return match.resolved.length === 1 && match.uncertain.length === 0;
-    })) {
+    };
+    const plainLines = !selective && text.split(/\r?\n/).map(line => line.trim()).filter(Boolean)
+      .flatMap(line => {
+        const parts = line.split(/\s*,\s*|\s+e\s+/i).map(part => part.trim()).filter(Boolean);
+        return parts.length > 1 && parts.every(resolvesOne) ? parts : [line];
+      });
+    if (plainLines && plainLines.length > 1 && plainLines.every(resolvesOne)) {
       progressCallback?.({phase:'prescription_qwen_done',count:plainLines.length});
       return {items:plainLines.map(raw_label=>({raw_label,evidence:raw_label})),uncertain:[]};
     }
@@ -13872,6 +13877,11 @@ Output JSON compatto:
     }
     if (n === "GLICATA") return findCatalogEntryByCode("90.28.1_0");
     const routineSynonyms = {
+      "PTT": "90.76.1_0",
+      "APTT": "90.76.1_0",
+      "GOT": "90.09.2_0",
+      "GPT": "90.04.5_0",
+      "COLINESTERASI": "90.14.4_0",
       "CALCEMIA": "90.11.4_2",
       "FOSFOREMIA": "90.24.3_2",
       "FOSFATEMIA": "90.24.3_2",
@@ -13935,7 +13945,7 @@ Output JSON compatto:
     if (!molecular && (n.includes("TREPONEMA") || n.includes("SIFIL") || /\bTPHA\b|\bTPPA\b|\bVDRL\b|\bRPR\b/.test(n))) {
       return findCatalogEntryByCode(n.includes("LIQUOR") ? "91.10.B_3" : "91.10.B_2");
     }
-    if (!molecular && (/\bHIV\b/.test(n) || n.includes("IMMUNODEFIC"))) {
+    if (!molecular && (/\bHIV(?:\s*1\s*2)?\b/.test(n) || n.includes("IMMUNODEFIC"))) {
       return findCatalogEntryByCode("91.23.F_0");
     }
     if (!molecular && (/\bHCV\b/.test(n) || n.includes("EPATITE C")) && !n.includes("ANTIGENE")) {
