@@ -3,7 +3,7 @@
 
   // ============================================================
   // SEGRETARIO MMG
-  // Versione 0.16.35
+  // Versione 0.16.36
   //
   // - Estrazione con Qwen 3.5 4B locale
   // - Comunicazione diretta Ollama via service worker Chrome
@@ -434,6 +434,8 @@
     ) return "ACR";
 
     if (n.includes("PEPTIDE NATRIURETICO") || n.includes("NT PROBNP") || n.includes("NTPROBNP") || /\bBNP\b/.test(n)) return "BNP";
+    if (/\bCUPREMIA\b|\bRAME\b/.test(n)) return "COPPER";
+    if (/\bZINCO\b/.test(n) && !/TRASPORTATORE|LIQUIDO SEMINALE/.test(n)) return "ZINC";
     if (/\bUREA\b/.test(n) || n.includes("AZOTEMIA")) return "UREA";
     if (n.includes("ACIDO URICO") || /\bURATO\b/.test(n)) return "URIC_ACID";
     if (/\bSODIO\b/.test(n)) return "SODIUM";
@@ -7282,6 +7284,8 @@ ${sourceText}
         "pg/ml", "ng/l", "pmol/l"
       ],
       IRON: ["ug/dl", "umol/l"],
+      COPPER: ["ug/dl", "ug/l", "umol/l"],
+      ZINC: ["ug/l", "ug/dl", "umol/l"],
       URIC_ACID: ["mg/dl", "umol/l", "mmol/l"],
       UREA: ["mg/dl", "mmol/l"],
       PCR: ["mg/dl", "mg/l"],

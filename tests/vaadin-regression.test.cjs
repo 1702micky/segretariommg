@@ -350,6 +350,32 @@ test('Padova pancreatic amylase stays distinct and P-ALP selects total alkaline 
   assert.equal(c.matchCatalogForCreation('FOSFATASI ALCALINA ISOENZIMA OSSEO')?.entry?.code,'90.24.1_0');
 });
 
+test('serum cupremia and plasma zinc resolve to the matching Eumed targets', () => {
+  const c=reportContext();
+  load(['getLongReportKind','parseInlineSpecimenMeasurement','parseAnchoredMeasurementLine',
+    'parsePureBilateralRangeLine','parseNearbyBilateralRange','extractSpecimenAnchoredResults',
+    'normalizedUnitLoose','unitCompatibleWithConcept','resolveExamName'],{},c);
+  vm.runInContext(source.match(/  function specimenCompatible\([\s\S]*?\n  \}/)[0],c);
+  c.getAvailableExams=()=>['RAME [S]','ZINCO [S]',
+    'IgE SPECIFICHE ALLERGOLOGICHE QUANTITATIVO PER INALANTI E ALIMENTI. Fino a 12 allergeni'];
+  const rows=c.extractSpecimenAnchoredResults([
+    's - CUPREMIA 83,7 µg/dL 80,0 - 155,0',
+    's - ZINCO Plasmatico 987 µg/L',
+    'Popolazione generale :',
+    '800 - 1600'
+  ].join('\n'));
+  assert.equal(rows.length,2,JSON.stringify(rows));
+  assert.deepEqual(Array.from(rows,x=>x.value),['83,7','987']);
+  assert.deepEqual(Array.from(rows,x=>x.unit),['µg/dL','µg/L']);
+  assert.deepEqual(Array.from(rows,x=>c.resolveExamName(x.raw_label).exam),['RAME [S]','ZINCO [S]']);
+  assert.equal(c.unitCompatibleWithConcept('COPPER',rows[0].unit),true);
+  assert.equal(c.unitCompatibleWithConcept('ZINC',rows[1].unit),true);
+  assert.equal(c.unitCompatibleWithConcept('ZINC','UI/mL'),false);
+  assert.equal(c.convertMeasurement('COPPER',rows[0].value,rows[0].unit).value,'83,7');
+  assert.equal(c.convertMeasurement('ZINC',rows[1].value,rows[1].unit).value,'987');
+  assert.equal(c.getExamConcept('ANTICORPI ANTI TRASPORTATORE DELLO ZINCO (ZnT8)'),null);
+});
+
 test('ULSS6 urine report keeps ACR only when no separate ratio target exists', () => {
   const c = load(['normalizeExamName','getExamConcept','detectSpecimen','cleanReportLines',
     'sliceKnownSection','cleanupKnownLongReportLines','buildUlss6LongReport',
