@@ -1099,6 +1099,27 @@ test('administrative reference codes do not block the actual suggestion or masqu
   assert.equal(context.prescriptionRowMatchesItem(row('90.27.1_3 OTHER. Non associabile a 90.27.1_2'),target),false);
 });
 
+test('non-prescribed protein code ignores an included-test reference in electrophoresis', () => {
+  const wrong={textContent:'ELETTROFORESI delle PROTEINE SIERICHE (PROTIDOGRAMMA) Incluso: Dosaggio delle proteine totali 90.38.5_2'};
+  const right={textContent:'90.38.5_2 -- PROTEINE [S]'};
+  for(const option of [wrong,right]) option.closest=()=>null;
+  const c=load(['normalizeExamName','significantTokens','sanitizeCreationCatalogAlias',
+    'filterSelectCandidateScore','findVisibleFilterSelectOption'],{
+    document:{querySelectorAll:()=>[wrong,right]},
+    isActuallyVisibleInViewport:()=>true,
+    isVisibleElement:()=>true
+  });
+  assert.equal(c.filterSelectCandidateScore(wrong.textContent,'90.38.5_2'),0);
+  assert.equal(c.filterSelectCandidateScore(right.textContent,'90.38.5_2'),12000);
+  assert.equal(c.findVisibleFilterSelectOption('90.38.5_2'),right);
+  assert.ok(c.filterSelectCandidateScore('PROTEINE [S]','PROTEINE [S]')>0);
+  const prepared=reportContext().prepareUnprescribedNumericCandidate({
+    raw_label:'P-PROTEINE TOTALI',value:'70',unit:'g/L',ref_min:'64',ref_max:'83',ref_unit:'g/L'
+  },'');
+  assert.equal(prepared.success,true,JSON.stringify(prepared));
+  assert.equal(prepared.item.catalogCode,'90.38.5_2');
+});
+
 test('the real HIV combined-test caption ignores its Immunoblotting exclusion code',()=>{
   const c=resolverContext();
   load(['normalizePrescriptionRowText','prescriptionRowText','sanitizeCreationCatalogAlias','prescriptionRowMatchesItem',

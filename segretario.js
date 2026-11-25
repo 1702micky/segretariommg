@@ -3,7 +3,7 @@
 
   // ============================================================
   // SEGRETARIO MMG
-  // Versione 0.16.33
+  // Versione 0.16.34
   //
   // - Estrazione con Qwen 3.5 4B locale
   // - Comunicazione diretta Ollama via service worker Chrome
@@ -3511,7 +3511,8 @@
   }
 
   function filterSelectCandidateScore(candidateText, targetText) {
-    const rawCandidate = String(candidateText || "").trim().toUpperCase();
+    const primaryCandidate = sanitizeCreationCatalogAlias(candidateText);
+    const rawCandidate = String(primaryCandidate || "").trim().toUpperCase();
     const rawTarget = String(targetText || "").trim().toUpperCase();
 
     // v0.15.33: quando il filtro è un codice CVP/Eumed, il codice della
@@ -3520,12 +3521,10 @@
     const codePattern = /^\d{2}\.\d{2}\.[A-Z0-9]+(?:_[A-Z0-9]+)?$/;
     if (codePattern.test(rawTarget)) {
       const codes = rawCandidate.match(/\b\d{2}\.\d{2}\.[A-Z0-9]+(?:_[A-Z0-9]+)?\b/g) || [];
-      if (codes.length) {
-        return codes.includes(rawTarget) ? 12000 : 0;
-      }
+      return codes.includes(rawTarget) ? 12000 : 0;
     }
 
-    const text = normalizeExamName(candidateText);
+    const text = normalizeExamName(primaryCandidate);
     const target = normalizeExamName(targetText);
     if (!text || !target) return 0;
 
@@ -3580,20 +3579,18 @@
 
     for (const selector of selectors) {
       for (const candidate of document.querySelectorAll(selector)) {
-        if (seen.has(candidate)) continue;
-        seen.add(candidate);
-        if (!isActuallyVisibleInViewport(candidate) && !isVisibleElement(candidate)) continue;
+        const clickable = candidate.closest(
+          ".gwt-MenuItem, td.gwt-MenuItem, [role='option'], tr"
+        ) || candidate;
+        if (seen.has(clickable)) continue;
+        seen.add(clickable);
+        if (!isActuallyVisibleInViewport(clickable) && !isVisibleElement(clickable)) continue;
 
         const score = filterSelectCandidateScore(
-          String(candidate.textContent || "").trim(),
+          String(clickable.textContent || "").trim(),
           targetText
         );
         if (!score || score <= bestScore) continue;
-
-        const clickable =
-          candidate.closest(
-            ".gwt-MenuItem, td.gwt-MenuItem, [role='option'], tr"
-          ) || candidate;
 
         if (clickable.closest(".v-grid-body")) continue;
 

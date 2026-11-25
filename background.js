@@ -1,5 +1,5 @@
 // Segretario MMG - background.js
-// Versione 0.16.33
+// Versione 0.16.34
 // Parla direttamente con Ollama locale via streaming NDJSON.
 
 const OLLAMA_URL = "http://127.0.0.1:11434/api/chat";

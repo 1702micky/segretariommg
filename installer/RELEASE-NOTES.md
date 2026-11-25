@@ -1,5 +1,4 @@
-Segretario MMG 0.16.33
+Segretario MMG 0.16.34
 
-- Le liste testuali semplici di prescrizioni vengono lette riga per riga quando tutte le voci hanno una corrispondenza certa nel catalogo, conservando la matrice [S]/[U] e senza omettere voci.
-- Corrette le associazioni per immunoglobuline sieriche e urinarie, sottoclassi IgG sieriche, elettroforesi delle sieroproteine e immunofenotipizzazione leuco/linfocitaria fino a 8 antigeni.
-- Nella lista prescrizioni, quando la matrice non e indicata viene preferita la variante sierica; una voce urinaria richiede un riferimento esplicito alle urine.
+- Nell'inserimento senza prescrizione, la selezione per codice ignora i codici citati nelle note amministrative delle altre voci del catalogo, per esempio l'esame delle proteine totali incluso nel protidogramma.
+- P-PROTEINE TOTALI resta un risultato numerico associato a PROTEINE [S] (90.38.5_2), non al protidogramma.
