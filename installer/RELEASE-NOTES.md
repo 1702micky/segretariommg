@@ -1,5 +1,5 @@
-Segretario MMG 0.16.37
+Segretario MMG 0.16.38
 
-- Nelle liste di prescrizione, PCR seleziona la proteina C reattiva ordinaria, ACTH la corticotropina del mattino ed elettroforesi proteica il protidogramma sierico.
-- Le catecolamine urinarie e plasmatiche selezionano i rispettivi accorpamenti. La conferma riconosce le nuove righe figlie anche quando non riportano il nome dell'accorpamento.
-- Le liste brevi fino a 24 voci vengono analizzate in un solo blocco. Rx torace resta segnalata quando manca nel catalogo locale.
+- Nei PDF AOU Padova, riconosce la calprotectina fecale anche senza prefisso e conserva il comparatore originale in anteprima.
+- Collega gli anticorpi anti H. pylori IgG e anti cellule parietali gastriche alle rispettive prestazioni, verificando le unità.
+- Quando manca una voce anticorpale in Eumed, la segnala separatamente e non usa le voci per antigene fecale o breath test.

@@ -247,14 +247,12 @@ test('prescription synonyms select real catalog entries without confusing glycat
 function resolverContext() {
   const catalog = JSON.parse(fs.readFileSync(path.join(__dirname, '../lab_catalog.json'), 'utf8')).entries;
   const context = load(['normalizeExamName', 'getExamConcept', 'detectSpecimen', 'significantTokens',
-    'stripSpecimenPrefix', 'catalogScore', 'findCatalogEntryByCode', 'catalogEntrySpecimen',
+    'specimenCompatible', 'stripSpecimenPrefix', 'catalogScore', 'findCatalogEntryByCode', 'catalogEntrySpecimen',
     'sanitizeCreationCatalogAlias', 'serologyFamilyState', 'preferredCreationCatalogDecision',
     'creationCatalogScore', 'matchCatalogForCreation', 'buildUnprescribedDecisionContext',
     'buildPrescriptionDecisionContext', 'isMolecularMicrobiologyText',
     'directCatalogCodeFromPrescriptionLabel', 'preferredPrescriptionCatalogEntry', 'resolvePrescriptionListItems'],
     { labCatalog: catalog });
-  const aliases = source.match(/  const CATALOG_QUERY_ALIASES = \{[\s\S]*?\n  \};/)[0];
-  vm.runInContext(aliases, context);
   return context;
 }
 
@@ -1060,6 +1058,39 @@ P-FT3(Triiodotironina Lib.) 4,60 pmol/L 3,90 - 6,80`;
   assert.equal(result.length, 1);
   assert.equal(result[0].value, '0,68');
   assert.equal(context.extractAcrResult(text, 'AOU_PADOVA').unit, 'mg/g');
+});
+
+test('AOU fecal calprotectin and serum antibodies resolve from their own rows', () => {
+  const context = reportContext();
+  const targets = ['CALPROTECTINA [FECI]', 'HELICOBACTER PYLORI ANTICORPI',
+    'ANTICORPI ANTI CELLULE PARIETALI GASTRICHE (APCA)'];
+  context.getAvailableExams = () => targets;
+  context.getLongReportKind = () => '';
+  load(['resolveExamName', 'chooseResolutionForModelResult',
+    'normalizedUnitLoose', 'unitCompatibleWithConcept', 'estimateResolvedGridTargets'], {}, context);
+
+  const raw = context.extractAouPadovaResults([
+    'S-Ab Anti H.Pylori-IgG\t* 120,4\tEIU\t< 22',
+    'S-Anticorpi Anti PARETE GASTRICA (ELISA)\t6,8\tKU/L\t< 11 KU/L',
+    'CALPROTECTINA FECALE\t< 18,2\tug/g\tfino a 55,0'
+  ].join('\n'));
+  assert.deepEqual(Array.from(raw, item => [item.raw_label, item.value, item.unit]), [
+    ['S-Ab Anti H.Pylori-IgG', '120,4', 'EIU'],
+    ['S-Anticorpi Anti PARETE GASTRICA (ELISA)', '6,8', 'KU/L'],
+    ['CALPROTECTINA FECALE', '<18,2', 'ug/g']
+  ]);
+  const resolve = (item, unit = item.unit) =>
+    context.chooseResolutionForModelResult(item.exam, item.raw_label, unit).resolution;
+  assert.deepEqual(Array.from(raw, item => resolve(item).exam), [targets[1], targets[2], targets[0]]);
+  assert.deepEqual([...context.estimateResolvedGridTargets(raw)].sort(), [...targets].sort());
+  assert.equal(resolve(raw[1], 'ng/L').reason, 'unit_mismatch');
+  assert.equal(resolve(raw[2], 'mg/dL').reason, 'unit_mismatch');
+
+  targets[1] = 'HELICOBACTER PYLORI ANTIGENE NELLE FECI RICERCA DIRETTA';
+  const absent = resolve(raw[0]);
+  assert.equal(absent.reason, 'known_not_in_grid');
+  assert.equal(absent.catalogEntry.code, '90.84.8_4');
+  assert.equal(context.getExamConcept('Ab Anti H.Pylori-IgM'), null);
 });
 
 test('a single real proposal is clicked before blur on the first filter', async () => {

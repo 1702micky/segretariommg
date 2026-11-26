@@ -3,7 +3,7 @@
 
   // ============================================================
   // SEGRETARIO MMG
-  // Versione 0.16.37
+  // Versione 0.16.38
   //
   // - Estrazione con Qwen 3.5 4B locale
   // - Comunicazione diretta Ollama via service worker Chrome
@@ -435,6 +435,11 @@
 
     if (n.includes("PEPTIDE NATRIURETICO") || n.includes("NT PROBNP") || n.includes("NTPROBNP") || /\bBNP\b/.test(n)) return "BNP";
     if (/\bCUPREMIA\b|\bRAME\b/.test(n)) return "COPPER";
+    if (/\bCALPROTECTINA\s+(?:FECALE|FECI)\b/.test(n)) return "FECAL_CALPROTECTIN";
+    if (/\b(?:AB|ANTICORPI)\s+ANTI\s+(?:PARETE GASTRICA|CELLULE PARIETALI GASTRICHE)\b/.test(n)) return "GASTRIC_PARIETAL_ANTIBODIES";
+    if (/\b(?:H|HELICOBACTER) PYLORI\b/.test(n) &&
+        /\b(?:AB|ANTICORPI|IGG)\b/.test(n) &&
+        !/\b(?:IGA|IGM|ANTIGEN\w*|FEC\w*|UREA|UREASI|BREATH|BIOPS\w*|COLTUR\w*)\b/.test(n)) return "H_PYLORI_ANTIBODIES";
     if (/\bZINCO\b/.test(n) && !/TRASPORTATORE|LIQUIDO SEMINALE/.test(n)) return "ZINC";
     if (/\bUREA\b/.test(n) || n.includes("AZOTEMIA")) return "UREA";
     if (n.includes("ACIDO URICO") || /\bURATO\b/.test(n)) return "URIC_ACID";
@@ -2138,6 +2143,21 @@
           query,
           concept,
           candidates: conceptMatches
+        };
+      }
+
+      const specificCode = {
+        FECAL_CALPROTECTIN: "90.12.A_0",
+        GASTRIC_PARIETAL_ANTIBODIES: "90.48.1_0",
+        H_PYLORI_ANTIBODIES: "90.84.8_4"
+      }[concept];
+      if (specificCode) {
+        const catalogEntry = findCatalogEntryByCode(specificCode);
+        return {
+          success: false,
+          reason: catalogEntry ? "known_not_in_grid" : "not_found",
+          query,
+          catalogEntry
         };
       }
     }
@@ -7286,6 +7306,9 @@ ${sourceText}
       IRON: ["ug/dl", "umol/l"],
       COPPER: ["ug/dl", "ug/l", "umol/l"],
       ZINC: ["ug/l", "ug/dl", "umol/l"],
+      FECAL_CALPROTECTIN: ["ug/g", "mg/kg"],
+      GASTRIC_PARIETAL_ANTIBODIES: ["ku/l", "u/ml"],
+      H_PYLORI_ANTIBODIES: ["eiu", "u/ml"],
       URIC_ACID: ["mg/dl", "umol/l", "mmol/l"],
       UREA: ["mg/dl", "mmol/l"],
       PCR: ["mg/dl", "mg/l"],
@@ -7746,7 +7769,7 @@ ${sourceText}
 
   function isAouMajorLabel(line) {
     const s = String(line ?? "").trim();
-    return /^[BPSU]-\S+/i.test(s) || /^PROFILO\s+/i.test(s) || /^Rapp\.\s*ALBUMINA-CREATININA/i.test(s) || /^eGFR\b/i.test(s);
+    return /^[BPSU]-\S+/i.test(s) || /^CALPROTECTINA\s+FECALE\b/i.test(s) || /^PROFILO\s+/i.test(s) || /^Rapp\.\s*ALBUMINA-CREATININA/i.test(s) || /^eGFR\b/i.test(s);
   }
 
   function parseAouBilateralRange(lines, start, end) {
@@ -7764,7 +7787,7 @@ ${sourceText}
 
   function parseInlineKnownMeasurement(line) {
     const s=String(line||"").replace(/\s+/g," ").trim();
-    const m=s.match(/^(.+?)\s+([<>≤≥]?\s*[+-]?\d+(?:[.,]\d+)?)\s*(?:\*\s*)?([A-Za-zµμ%][A-Za-z0-9µμ%/^.'_-]*)(?:\s+(.*))?$/);
+    const m=s.match(/^(.+?)\s+(?:\*\s*)?([<>≤≥]?\s*[+-]?\d+(?:[.,]\d+)?)\s*(?:\*\s*)?([A-Za-zµμ%][A-Za-z0-9µμ%/^.'_-]*)(?:\s+(.*))?$/);
     if(!m) return null;
     return {label:m[1].trim(),value:m[2].replace(/\s+/g,""),unit:m[3].trim(),tail:String(m[4]||"").trim()};
   }
@@ -7795,10 +7818,11 @@ ${sourceText}
 
     for (let i = 0; i < lines.length; i++) {
       const inline = lines[i].match(/^([BPSU])-(.+)$/i);
-      if (!inline) continue;
+      const fecal = /^CALPROTECTINA\s+FECALE\s+/i.test(lines[i]);
+      if (!inline && !fecal) continue;
 
-      const specimen = inline[1].toUpperCase();
-      let label = String(inline[2] || "").trim();
+      const specimen = inline ? inline[1].toUpperCase() : "";
+      let label = inline ? inline[2].trim() : lines[i];
 
       // I componenti U-* appartengono al referto lungo urine.
       // L'ACR viene estratto separatamente da extractAcrResult().
@@ -7811,6 +7835,7 @@ ${sourceText}
 
       const inlineMeasurement =
         parseInlineKnownMeasurement(label);
+      if (fecal && !inlineMeasurement) continue;
 
       const measurements = [];
 
@@ -7836,7 +7861,7 @@ ${sourceText}
         continue;
       }
 
-      let end = Math.min(lines.length, i + 26);
+      let end = fecal ? i + 1 : Math.min(lines.length, i + 26);
 
       for (let j = i + 1; j < end; j++) {
         if (isAouMajorLabel(lines[j])) {
@@ -7923,7 +7948,7 @@ ${sourceText}
             x.ref_min && x.ref_max
               ? `${x.ref_min} - ${x.ref_max}`
               : x.tail || "",
-          raw_label: `${specimen}-${label}`,
+          raw_label: specimen ? `${specimen}-${label}` : label,
           evidence: `${label} ${x.value} ${x.unit}`,
           _deterministic: true,
           _layout: "AOU_PADOVA"
@@ -8586,6 +8611,9 @@ ${sourceText}
       TRIGLYCERIDES:["TRIGLICERIDI"],
       GLUCOSE:["GLUCOSIO","GLICEMIA"],
       IRON:["FERRO","SIDEREMIA"],
+      FECAL_CALPROTECTIN:["CALPROTECTINA"],
+      GASTRIC_PARIETAL_ANTIBODIES:["PARETE GASTRICA","CELLULE PARIETALI GASTRICHE"],
+      H_PYLORI_ANTIBODIES:["H PYLORI","HELICOBACTER PYLORI"],
       FERRITIN:["FERRITINA"],
       VITAMIN_D:["VITAMINA D","25 OH","25OH"],
       PHOSPHATE:["FOSFATO","FOSFATI","FOSFORO"],
