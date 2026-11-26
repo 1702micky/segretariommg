@@ -3,7 +3,7 @@
 
   // ============================================================
   // SEGRETARIO MMG
-  // Versione 0.16.36
+  // Versione 0.16.37
   //
   // - Estrazione con Qwen 3.5 4B locale
   // - Comunicazione diretta Ollama via service worker Chrome
@@ -11794,6 +11794,7 @@ ${buildReferenceIntervalPrompt()}
       const n = normalizeExamName(label);
       // Urine, timed collections and complex panels keep their dedicated parsers.
       if (detectSpecimen(label) === "URINE" || /URIA|\b24\s*H\b|\b24H\b/.test(n)) return null;
+      if (n === "PCR") return null;
       const preferred = shortNames.test(n) ? preferredPrescriptionCatalogEntry(label) : null;
       const catalogLabel = preferred?.name || label;
       const resolved = matchCatalogForCreation(catalogLabel, context);
@@ -13558,7 +13559,7 @@ ${buildReferenceIntervalPrompt()}
     if(current.trim()) parts.push(current.trim());
     const chunks=[];current='';let count=0;
     for(const part of parts) {
-      if(current && (current.length+part.length+1>maxChars || count>=12)) {chunks.push(current);current='';count=0;}
+      if(current && (current.length+part.length+1>maxChars || count>=24)) {chunks.push(current);current='';count=0;}
       current+=(current?'\n':'')+part;count++;
     }
     if(current) chunks.push(current);
@@ -13803,11 +13804,23 @@ Output JSON compatto:
     const n = normalizeExamName(raw);
     if (!n) return null;
 
-    const direct = directCatalogCodeFromPrescriptionLabel(raw);
-    if (direct) return direct;
-    if (/^ELETTROFORESI DELLE PROTEINE(?: SIEROPROTEINE)?(?: S)?$/.test(n)) {
+    if (/^(?:ELETTROFORESI (?:DELLE PROTEINE(?: SIEROPROTEINE)?|PROTEICA)(?: S)?|PROTIDOGRAMMA)$/.test(n)) {
       return findCatalogEntryByCode("90.38.4_0");
     }
+    if (/^(?:ACTH|CORTICOTROPINA(?: ACTH)?)(?: MATTINO| P)?$/.test(n)) {
+      return findCatalogEntryByCode("90.15.2_2");
+    }
+    if (n === "PCR" || n === "PROTEINA C REATTIVA") {
+      return findCatalogEntryByCode("90.72.3_2");
+    }
+    if (/^CATECOLAMINE (?:PLASMATICHE|PLASMA|P)$/.test(n)) {
+      return findCatalogEntryByCode("CATEPLA");
+    }
+    if (/^CATECOLAMINE (?:URINARIE|URINE|U)$/.test(n)) {
+      return findCatalogEntryByCode("CATE");
+    }
+    const direct = directCatalogCodeFromPrescriptionLabel(raw);
+    if (direct) return direct;
     const immunoglobulin = n.match(/^IMMUNOGLOBULINE IG([AGM])(?: ([SU]))?$/);
     if (immunoglobulin) {
       const codes = {
@@ -13982,6 +13995,10 @@ Output JSON compatto:
 
       const n = normalizeExamName(label);
       if (/^(?:ESAMI|ANALISI|LABORATORIO|BIOCHIMICA|SIEROLOGIA|EMATOLOGIA)$/.test(n)) continue;
+      if (/^(?:RX|RADIOGRAFIA)(?: DEL)? TORACE$/.test(n)) {
+        uncertain.push({text:label,reason:"Radiografia del torace non presente nel catalogo locale: selezionare la voce radiologica in Eumed"});
+        continue;
+      }
 
       if (/^CALCIURIA(?: (?:SPOT|ESTEMPORANEA|SEMPLICE|NORMALE))?$/.test(n)) {
         uncertain.push({ text: label, reason: "Nel catalogo manca una voce generica CALCIO [U]: specificare I/II minzione oppure rapporto calcio/creatinina. Nessuna conversione automatica in raccolta 24 ore." });
@@ -14126,6 +14143,11 @@ Output JSON compatto:
     const text = normalizePrescriptionRowText(sanitizeCreationCatalogAlias(prescriptionRowText(row)));
     if (!text) return false;
 
+    // L'accorpamento delle catecolamine puo creare righe figlie, non una riga
+    // che porta il nome dell'accorpamento scelto nella tendina.
+    if (item?.catalogCode === "CATEPLA" && /(?:^|[^A-Z0-9])90 03 6 (?:4|5)(?:[^A-Z0-9]|$)/.test(text)) return true;
+    if (item?.catalogCode === "CATE" && /(?:^|[^A-Z0-9])90 03 6 (?:6|7)(?:[^A-Z0-9]|$)/.test(text)) return true;
+
     const code = normalizePrescriptionRowText(item?.catalogCode || "");
     const containsWhole = value => {
       const escaped = value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -14217,7 +14239,9 @@ Output JSON compatto:
       ? item.catalogEntry.aliases.filter(Boolean)
       : [];
 
-    const targets = [code, name, ...aliases].filter(Boolean);
+    // Gli accorpamenti con codice alfabetico vengono cercati per il nome
+    // visibile: Eumed puo non indicizzare il codice tecnico nella tendina.
+    const targets = (/^[A-Z]+$/.test(code) ? [name, code, ...aliases] : [code, name, ...aliases]).filter(Boolean);
     for (const target of [...new Set(targets)].slice(0, 7)) {
       const currentInput = getPrescriptionListForm()?.accertamento || input;
       const attempt = await choosePrescriptionCatalogTarget(currentInput, target, item);

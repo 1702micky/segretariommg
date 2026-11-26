@@ -1310,6 +1310,31 @@ test('long prescription lists are batched without losing entries, decimals or pa
  const text=entries.join('\n');const chunks=c.splitPrescriptionAnalysisText(text);assert.ok(chunks.length>1);assert.equal(chunks.join('\n'),text);assert.ok(chunks.every(x=>x.length<=900));
  assert.equal(c.splitPrescriptionAnalysisText('Vitamina 1,25 OH; AST, ALT').join('\n'),'Vitamina 1,25 OH\nAST\nALT');
 });
+test('short comma-separated prescription list stays in one analysis batch',()=>{
+ const c=load(['splitPrescriptionAnalysisText']);
+ const labels=['emocromo','pcr','vitamina d','creatinina','got','gpt','glucosio','colesterolo totale','colesterolo hdl','trigliceridi','esame urine','ACTH','cortisolo','D-Dimero','sodio','potassio','elettroforesi proteica','catecolamine urinarie','catecolamine plasmatiche','Rx torace'];
+ const chunks=c.splitPrescriptionAnalysisText(labels.join(', '));
+ assert.equal(chunks.length,1);
+ assert.equal(chunks[0].split('\n').length,labels.length);
+});
+test('reviewed prescription labels select routine CRP, morning ACTH, protein electrophoresis and catecholamine groups',()=>{
+ const c=resolverContext();
+ for(const [label,code] of [['pcr','90.72.3_2'],['ACTH','90.15.2_2'],['elettroforesi proteica','90.38.4_0'],['protidogramma','90.38.4_0'],['catecolamine urinarie','CATE'],['catecolamine plasmatiche','CATEPLA']]) {
+   assert.equal(c.preferredPrescriptionCatalogEntry(label)?.code,code,label);
+ }
+ assert.equal(c.preferredPrescriptionCatalogEntry('HIV RNA previa PCR'),null);
+ assert.equal(c.preferredPrescriptionCatalogEntry('ACTH test completo')?.code,'ACTH');
+ const result=c.resolvePrescriptionListItems(['pcr','ACTH','elettroforesi proteica','catecolamine urinarie','catecolamine plasmatiche'].map(raw_label=>({raw_label})));
+ assert.deepEqual(Array.from(result.resolved,item=>item.catalogCode),['90.72.3_2','90.15.2_2','90.38.4_0','CATE','CATEPLA']);
+});
+test('catecholamine group is confirmed by its new child row',()=>{
+ const {state,context}=gridContext();
+ const target={catalogCode:'CATEPLA',exam:'CATECOLAMINE PLASMATICHE',catalogEntry:{name:'CATECOLAMINE PLASMATICHE',aliases:[]}};
+ const before=context.getPrescriptionWriteSnapshot(target);
+ state.total='11';const added=row('90.03.6_4 ADRENALINA [P]');state.rows=[added];
+ assert.equal(context.findNewPrescriptionRow(before,target),added);
+ assert.equal(context.prescriptionRowMatchesItem(row('90.03.6_6 ADRENALINA [U]'),target),false);
+});
 test('incomplete prescription JSON retries smaller analysis batches and retains selective context',async()=>{
  let calls=0;const c=load(['splitPrescriptionAnalysisText','extractPrescriptionListWithQwenText'],{extractPrescriptionListTextBatch:async(text,_cb,selective)=>{calls++;assert.equal(selective,true);if(text.includes('\n'))throw Error('IA non ha restituito JSON completo.');return {items:[{raw_label:text}],uncertain:[]};}});
  const result=await c.extractPrescriptionListWithQwenText('[x] AST\n[ ] ALT\n[x] GGT');assert.equal(result.items.length,3);assert.ok(calls>3);
