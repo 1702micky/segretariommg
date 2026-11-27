@@ -1,4 +1,4 @@
-Segretario MMG 0.16.38
+Segretario MMG 0.16.39
 
 - Prompt condiviso per gli intervalli nei flussi con e senza prescrizioni.
 - Limiti singoli <, <=, ≤ salvati solo come massimo; >, >=, ≥ solo come minimo. Nessun minimo zero inventato.

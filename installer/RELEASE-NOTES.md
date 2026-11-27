@@ -1,5 +1,4 @@
-Segretario MMG 0.16.38
+Segretario MMG 0.16.39
 
-- Nei PDF AOU Padova, riconosce la calprotectina fecale anche senza prefisso e conserva il comparatore originale in anteprima.
-- Collega gli anticorpi anti H. pylori IgG e anti cellule parietali gastriche alle rispettive prestazioni, verificando le unità.
-- Quando manca una voce anticorpale in Eumed, la segnala separatamente e non usa le voci per antigene fecale o breath test.
+- Nei referti AOU, i tre campioni di sangue occulto fecale vengono riconosciuti separatamente e l'anteprima indica l'esito qualitativo da compilare manualmente in ciascuna riga Eumed.
+- I cut-off e gli intervalli di riferimento descrittivi non diventano risultati o nuovi esami. Gli avvisi IA duplicati per un risultato numerico gia letto dal parser vengono soppressi.

@@ -661,7 +661,7 @@ test('plain transaminase lines resolve directly with values and no invented rang
     detectSerologyComplexItems: () => ({ items: [], unmatched: [] }),
     rawResultCoveredByUnprescribedComplex: () => false,
   });
-  load(['extractUnprescribedDeterministicRaw', 'extractUnprescribedFromReport'], {}, context);
+  load(['extractUnprescribedDeterministicRaw', 'extractFecalOccultSamples', 'isFecalOccultSampleWarning', 'isVerifiedUnprescribedWarning', 'extractUnprescribedFromReport'], {}, context);
   const result = await context.extractUnprescribedFromReport('AST 17 U/L\nALT 19 U/L');
   assert.equal(result.numeric.length, 2);
   assert.equal(result.stats.qwenUsed, false);
@@ -753,7 +753,8 @@ function inlineLabContext() {
   load(['knownLongReportKinds', 'getFixedComplexCatalogEntry', 'genericLongReportSlice', 'extractKnownLongReportText',
     'normalizeLongReportText', 'buildUnprescribedFixedComplexItems', 'aiLineHasMeasurement', 'aiLineIsClinicalContext',
     'isKnownAiChromeLine', 'stripKnownPageChrome', 'collectConsumedAiLineKeys', 'removeConsumedAiLines',
-    'getUnclaimedAiEvidence', 'buildKnownUnprescribedResidualEvidence'], {}, context);
+    'getUnclaimedAiEvidence', 'buildKnownUnprescribedResidualEvidence', 'extractFecalOccultSamples',
+    'isFecalOccultSampleWarning', 'isVerifiedUnprescribedWarning'], {}, context);
   vm.runInContext(source.match(/  const UNPRESCRIBED_FIXED_COMPLEX_CODES = \{[\s\S]*?\n  \};/)[0],context);
   context.getAvailableExams=()=>[];
   return context;
@@ -777,6 +778,43 @@ test('third-party inline chemistry and Italian CBC preserve all numeric tests an
   assert.equal(fixed.length,1);assert.equal(fixed[0].complexKind,'EMOCROMO');
   const residual=c.buildKnownUnprescribedResidualEvidence(inlineLabFixture,'INLINE_CBC_CHEMISTRY',raw,fixed);
   assert.equal(residual.count,0,JSON.stringify(residual));
+});
+
+test('AOU stool occult blood samples retain ordinal and qualitative result without using cutoff as a value', () => {
+  const c=load(['extractFecalOccultSamples','isFecalOccultSampleWarning','isVerifiedUnprescribedWarning','normalizeExamName','isKnownResidualNonExamLabel']);
+  const report=['P-TRIGLICERIDI 0,82 mmol/L','F-SANGUE OCCULTO NELLE FECI',
+    '-PRIMO CAMPIONE Negativo Cut-off: 100 ng/ml',
+    '-SECONDO CAMPIONE Negativo Cut-off: 100 ng/ml',
+    '-TERZO CAMPIONE Positivo Cut-off: 100 ng/ml','P-TSH 1,48 mIU/L'].join('\n');
+  assert.deepEqual(Array.from(c.extractFecalOccultSamples(report),x=>[x.code,x.result]),[
+    ['90.21.4_2','NEGATIVO'],['90.21.4_3','NEGATIVO'],['90.21.4_4','POSITIVO']]);
+  assert.equal(c.extractFecalOccultSamples('P-TSH 1,48 mIU/L').length,0);
+  assert.equal(c.isFecalOccultSampleWarning('-TERZO CAMPIONE Positivo Cut-off: 100 ng/ml'),true);
+  assert.equal(c.isKnownResidualNonExamLabel('alterata a digiuno: 5,7 - 6,9'),true);
+  assert.equal(c.isKnownResidualNonExamLabel('gravidanza: 3,7 - 5,1'),true);
+  assert.equal(c.isKnownResidualNonExamLabel('P-ALT * 5 U/L 7 - 35'),false);
+  const numeric=[{source:'parser',raw_label:'P-ALT',originalValue:'5',value:'5'}];
+  assert.equal(c.isVerifiedUnprescribedWarning({text:'P-ALT * 5 U/L 7 - 35'},numeric),true);
+  assert.equal(c.isVerifiedUnprescribedWarning({text:'P-ALT * 8 U/L 7 - 35'},numeric),false);
+});
+
+test('unprescribed preview lists all three qualitative stool outcomes for manual entry', async () => {
+  const c=inlineLabContext();
+  load(['extractSimpleNumericReport','extractUnprescribedDeterministicRaw','extractPaddleTabularResults',
+    'removeUnsupportedDuplicateAssignments','sourceSupportScoreForResult','isHbA1cLabel','parseExplicitReportDateText',
+    'rawResultCoveredByUnprescribedComplex','isLongReportComponent','getKnownLayoutDisplayName',
+    'validateKnownLayoutQwenResidualResults','extractUnprescribedFromReport'],{},c);
+  c.ensureLabCatalog=async()=>{};
+  c.extractUnprescribedWithQwen=async()=>({results:[],complex:[],uncertain:[]});
+  c.buildRawSerologyComplexItems=()=>[];
+  c.detectSerologyComplexItems=()=>({items:[],unmatched:[]});
+  const sampleText=['F-SANGUE OCCULTO NELLE FECI','-PRIMO CAMPIONE Negativo Cut-off: 100 ng/ml',
+    '-SECONDO CAMPIONE Negativo Cut-off: 100 ng/ml','-TERZO CAMPIONE Positivo Cut-off: 100 ng/ml'].join('\n');
+  const result=await c.extractUnprescribedFromReport(`${inlineLabFixture}\n${sampleText}`);
+  const warnings=result.uncertain.filter(x=>/SANGUE OCCULTO/.test(x.text));
+  assert.deepEqual(Array.from(warnings,x=>[x.text.match(/(PRIMO|SECONDO|TERZO)/)[1],x.reason.match(/(negativo|positivo)/)[1]]),[
+    ['PRIMO','negativo'],['SECONDO','negativo'],['TERZO','positivo']]);
+  assert.equal(result.numeric.some(x=>x.value==='100'),false);
 });
 
 test('the full unprescribed flow processes the new layout without AI rescue or invented panels', async () => {

@@ -3,7 +3,7 @@
 
   // ============================================================
   // SEGRETARIO MMG
-  // Versione 0.16.38
+  // Versione 0.16.39
   //
   // - Estrazione con Qwen 3.5 4B locale
   // - Comunicazione diretta Ollama via service worker Chrome
@@ -9952,12 +9952,26 @@ ${sourceText}
       }
     );
 
+    const fecalSamples = extractFecalOccultSamples(reportText);
+    const fecalWarnings = fecalSamples.flatMap(sample => {
+      const target = availableExams.find(exam => {
+        const n = normalizeExamName(exam);
+        return n.includes("SANGUE OCCULTO") && n.includes(`${sample.ordinal} CAMPIONE`);
+      });
+      return target ? [{
+        text: target,
+        reason: `Nel referto: ${sample.ordinal.toLowerCase()} campione ${sample.result.toLowerCase()}. Esito qualitativo da compilare manualmente.`
+      }] : [];
+    });
+
     return {
       results,
       longReports,
       recognizedNotInGrid: cleanedRecognized,
-      rejected: cleanedRejected,
-      uncertain: cleanedUncertain,
+      rejected: fecalWarnings.length ? cleanedRejected.filter(item => !isFecalOccultSampleWarning(`${item?.exam || ""} ${item?.raw_label || ""}`)) : cleanedRejected,
+      uncertain: fecalWarnings.length
+        ? [...cleanedUncertain.filter(item => !isFecalOccultSampleWarning(item?.text || "")), ...fecalWarnings]
+        : cleanedUncertain,
       chunks: chunks.length,
       analysisMode: deterministicOnly ? "grid_first_deterministic" : "grid_first_hybrid",
       deterministicResolvedCount: deterministicResolved.size,
@@ -11662,6 +11676,7 @@ ${buildReferenceIntervalPrompt()}
     const r = normalizeExamName(reason || "");
     if (!n) return true;
     if (/^(?:RACCOMANDATO|VALORI? DI RIFERIMENTO|FISIOLOGICO|MODERATAMENTE AUMENTATO|SEVERAMENTE AUMENTATO)(?:\b|:)/.test(n)) return true;
+    if (/^(?:alterata\s*a\s*digiuno|gravidanza)\s*:\s*\d+(?:[.,]\d+)?\s*-\s*\d+(?:[.,]\d+)?$/i.test(String(text || "").trim())) return true;
     // Frammenti senza etichetta: i risultati ancorati alla loro intestazione
     // vengono estratti separatamente, non trattati come nuovi esami.
     if (/^(?:[<>≤≥]?\s*[+-]?\d+(?:[.,]\d+)?\s*\*?\s*)?(?:mg\s*\/\s*d[lL]|mmol\s*\/\s*[lL]|umol\s*\/\s*[lL]|mg\s*\/\s*g(?:\s+Creat\.?)?)(?:\s|$)/i.test(String(text || "").trim())) return true;
@@ -11691,6 +11706,43 @@ ${buildReferenceIntervalPrompt()}
     if (/FIRMA DEL REFERTANTE|VALIDAZIONE CLINICA|FIRMATARIO/.test(r)) return true;
 
     return false;
+  }
+
+  function extractFecalOccultSamples(reportText) {
+    const lines = String(reportText || "").replace(/\r/g, "").split("\n")
+      .map(line => line.replace(/\s+/g, " ").trim());
+    const start = lines.findIndex(line => /^F-?SANGUEOCCULTONELLEFECI\b/.test(line.toUpperCase().replace(/\s+/g, "")));
+    if (start < 0) return [];
+    const codes = { PRIMO: "90.21.4_2", SECONDO: "90.21.4_3", TERZO: "90.21.4_4" };
+    const found = new Map();
+    for (const line of lines.slice(start + 1, start + 7)) {
+      if (/^[BPSU]-[A-Z]/i.test(line)) break;
+      const match = line.match(/^[-–]?\s*(PRIMO|SECONDO|TERZO)\s+CAMPIONE\s+(NEGATIVO|POSITIVO)\b/i);
+      if (match && !found.has(match[1].toUpperCase())) {
+        const ordinal = match[1].toUpperCase();
+        found.set(ordinal, { ordinal, result: match[2].toUpperCase(), code: codes[ordinal], evidence: line });
+      }
+    }
+    return [...found.values()];
+  }
+
+  function isFecalOccultSampleWarning(text) {
+    const n = normalizeExamName(text);
+    return /SANGUE OCCULTO.*(?:PRIMO|SECONDO|TERZO) CAMPIONE/.test(n) ||
+      /^(?:PRIMO|SECONDO|TERZO) CAMPIONE\b/.test(n);
+  }
+
+  function isVerifiedUnprescribedWarning(warning, numeric) {
+    const label = normalizeExamName(warning?.text || "");
+    return (numeric || []).some(item => {
+      if (item.source !== "parser") return false;
+      const parsedLabel = normalizeExamName(item.raw_label);
+      const parsedValue = normalizeExamName(item.originalValue || item.value);
+      return label === parsedLabel ||
+        (parsedLabel.length >= 4 &&
+          (label.startsWith(`${parsedLabel} ${parsedValue} `) ||
+           label.startsWith(`${parsedLabel} * ${parsedValue} `)));
+    });
   }
 
   function validateKnownLayoutQwenResidualResults(payload, residualText, uncertain) {
@@ -12402,8 +12454,23 @@ ${buildReferenceIntervalPrompt()}
     const verifiedLabels = new Set(numeric.filter(item => item.source === "parser")
       .map(item => normalizeExamName(item.raw_label)));
     for (let i = uncertain.length - 1; i >= 0; i--) {
-      if (/Risultato o unita proposti dall'IA non confermati|Intervallo normale IA non confermato/.test(uncertain[i]?.reason || "") &&
-          verifiedLabels.has(normalizeExamName(uncertain[i]?.text || ""))) uncertain.splice(i, 1);
+      const warning = uncertain[i];
+      if (!/Risultato o unita proposti dall'IA non confermati|Intervallo normale IA non confermato/.test(warning?.reason || "")) continue;
+      const label = normalizeExamName(warning?.text || "");
+      const alreadyParsed = isVerifiedUnprescribedWarning(warning, numeric);
+      if (verifiedLabels.has(label) || alreadyParsed) uncertain.splice(i, 1);
+      else if (/\bEGFR\b/.test(label)) warning.reason = "eGFR: dato accessorio della creatinina, non inserito come prestazione autonoma; verifica il valore sul referto.";
+    }
+
+    const fecalSamples = extractFecalOccultSamples(reportText);
+    if (fecalSamples.length) {
+      for (let i = uncertain.length - 1; i >= 0; i--) {
+        if (isFecalOccultSampleWarning(uncertain[i]?.text || "")) uncertain.splice(i, 1);
+      }
+      for (const sample of fecalSamples) uncertain.push({
+        text: `FECI SANGUE OCCULTO - ${sample.ordinal} CAMPIONE`,
+        reason: `Esito ${sample.result.toLowerCase()} nel referto. Risultato qualitativo da inserire manualmente.`
+      });
     }
 
     complex.sort((a, b) => String(a.exam).localeCompare(String(b.exam), "it"));
