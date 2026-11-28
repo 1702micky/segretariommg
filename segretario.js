@@ -3,7 +3,7 @@
 
   // ============================================================
   // SEGRETARIO MMG
-  // Versione 0.16.40
+  // Versione 0.16.41
   //
   // - Estrazione con Qwen 3.5 4B locale
   // - Comunicazione diretta Ollama via service worker Chrome
@@ -16635,6 +16635,12 @@ button:disabled {
     });
   }
 
+  function isUnmatchedAiRangeWarning(item, results) {
+    if (!/Intervallo normale IA non confermato sulla riga sorgente/.test(item?.reason || "")) return false;
+    const target = normalizeExamName(item?.text || item?.exam || "");
+    return !!target && !(results || []).some(result => normalizeExamName(result?.exam || "") === target);
+  }
+
   function mergeIndependentReadings(
     parserExtraction,
     hybridExtraction,
@@ -16938,7 +16944,7 @@ button:disabled {
     }
 
     const filteredUncertain = uncertain.filter(
-      item => !isBilirubinNoise(item)
+      item => !isBilirubinNoise(item) && !isUnmatchedAiRangeWarning(item, results)
     );
 
     const rejected =

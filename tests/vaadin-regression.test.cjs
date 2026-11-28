@@ -395,7 +395,7 @@ test('ULSS6 urine report keeps ACR only when no separate ratio target exists', (
 test('merged prescribed reading does not revive ACR warnings already in urine report', () => {
   const c = load(['normalizeExamName','detectSpecimen','getExamConcept',
     'getLongReportKind','dedupeRecognizedNotInGrid','cloneResultWithSource',
-    'enrichEquivalentResult','extractionHasAmbiguityForExam','mergeIndependentReadings']);
+    'enrichEquivalentResult','extractionHasAmbiguityForExam','isUnmatchedAiRangeWarning','mergeIndependentReadings']);
   const urineExam = 'ESAME URINE COMPLETO';
   const urine = {exam:urineExam,kind:'URINE',text:'U_ESAME CHIMICO FISICO URINE\nRapporto Alb/Cre (RAC) <30 mg/g Creat.'};
   const parser = {results:[],longReports:[urine],recognizedNotInGrid:[],uncertain:[],rejected:[]};
@@ -410,6 +410,26 @@ test('merged prescribed reading does not revive ACR warnings already in urine re
   const separate = c.mergeIndependentReadings(parser,hybrid,[urineExam,'RAPPORTO ALBUMINA-CREATININA (ACR) URINE']);
   assert.equal(separate.uncertain.length,1);
   assert.equal(separate.rejected.length,1);
+});
+
+test('rejected pancreatic amylase cannot leave a range warning on serum total amylase', () => {
+  const c = load(['normalizeExamName','detectSpecimen','getExamConcept',
+    'getLongReportKind','dedupeRecognizedNotInGrid','cloneResultWithSource',
+    'enrichEquivalentResult','extractionHasAmbiguityForExam','isUnmatchedAiRangeWarning','mergeIndependentReadings']);
+  const target='ALFA AMILASI [S]';
+  const warning={text:target,reason:'Intervallo normale IA non confermato sulla riga sorgente: limiti lasciati vuoti.'};
+  const parser={results:[],longReports:[],recognizedNotInGrid:[{raw_label:'AMILASI PANCREATICA',value:'65',unit:'U/L'}],uncertain:[],rejected:[]};
+  const hybrid={results:[],longReports:[],recognizedNotInGrid:[],uncertain:[warning],rejected:[]};
+  const merged=c.mergeIndependentReadings(parser,hybrid,[target]);
+  assert.equal(merged.results.length,0);
+  assert.equal(merged.uncertain.length,0);
+  assert.equal(merged.recognizedNotInGrid[0].raw_label,'AMILASI PANCREATICA');
+  assert.equal(c.isUnmatchedAiRangeWarning(warning,[{exam:target}]),false);
+  Object.assign(c,{isLongReportComponent:()=>false,buildPrescribedTransferText:()=>'',targetConceptTerms:()=>[]});
+  load(['auditItemName','buildEumedAudit'],{},c);
+  const audit=c.buildEumedAudit(merged,'P-AMILASI PANCREATICA 65 U/L');
+  assert.equal(audit.presentInReportAbsentEumed[0].name,'AMILASI PANCREATICA');
+  assert.deepEqual(Array.from(audit.eumedNotFound),[target]);
 });
 
 test('the complete reported list resolves through the real resolver and real catalog', () => {

@@ -1,4 +1,4 @@
-Segretario MMG 0.16.40
+Segretario MMG 0.16.41
 
-- I referti lunghi preparati nel passaggio residuo, incluso il PSA reflex da testo OCR, vengono ora inviati alla scrittura anche quando il loro testo e stato ricostruito senza un'etichetta di provenienza IA.
-- Il riepilogo distingue i referti lunghi preparati da quelli realmente compilati in Eumed e segnala per nome quelli rimasti senza scrittura.
+- Gli avvisi sugli intervalli normali proposti dall'IA vengono mostrati solo quando il relativo risultato e stato accettato e associato alla riga Eumed.
+- Nel caso di amilasi pancreatica presente nel referto ma non prescritta, l'amilasi totale sierica resta correttamente non trovata invece di ricevere un avviso sui limiti della voce pancreatica.
