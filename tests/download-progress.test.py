@@ -29,16 +29,18 @@ try:
             script = f"""
 $ErrorActionPreference='Stop'
 . '{helper}'
+. '{helper.parent / 'Update.Console.Helpers.ps1'}'
 $p=Get-DownloadProgress 1500000 3000000
 if($p.Percent -ne 50 -or $p.Status -notmatch 'MB / .*MB'){{throw 'Formato MB o percentuale errati'}}
 if((Get-DownloadProgress 1500000 -1).Percent -ne -1){{throw 'Totale sconosciuto errato'}}
-Receive-FileWithProgress -Uri 'http://127.0.0.1:{server.server_port}/{route}' -OutFile '{target}'
+Receive-FileWithProgress -Uri 'http://127.0.0.1:{server.server_port}/{route}' -OutFile '{target}' -ConsoleProgress
 """
             result = subprocess.run(['powershell.exe', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', script], capture_output=True)
             if route in ('known', 'unknown'):
                 assert result.returncode == 0, result.stderr
                 assert target.read_bytes() == payload
-                assert b'MB' in result.stdout
+                assert b'MB' in result.stdout and b'MB/s' in result.stdout
+                if route=='known':assert b'%' in result.stdout
             else:
                 assert result.returncode != 0, route
                 assert not target.exists(), 'Partial file was not removed'

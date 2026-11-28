@@ -32,6 +32,11 @@ with zipfile.ZipFile(update) as z:
 with zipfile.ZipFile(package) as z:
  assert 'Setup.ps1' in z.namelist() and 'Setup.Helpers.ps1' in z.namelist() and 'runtime/Startup.ps1' in z.namelist()
  assert 'runtime/Uninstall.ps1' in z.namelist() and 'runtime/Uninstall.Helpers.ps1' in z.namelist()
-for p in [exe,update]:
+manual=output/f'SegretarioMMG-Aggiorna-{version}.zip'
+manual_names=['Aggiorna-Segretario.bat','Update.ps1','Download.Helpers.ps1','Update.Console.Helpers.ps1','settings.json']
+with zipfile.ZipFile(manual,'w',zipfile.ZIP_DEFLATED) as z:
+ for n in manual_names:z.write(root/'installer/runtime'/n,n)
+with zipfile.ZipFile(manual) as z:assert set(z.namelist())==set(manual_names)
+for p in [exe,update,manual]:
  (output/(p.name+'.sha256')).write_text(hashlib.sha256(p.read_bytes()).hexdigest()+'  '+p.name+'\n')
 print(json.dumps({'version':version,'extension_files':len(names),'installer_bytes':exe.stat().st_size,'update_bytes':update.stat().st_size}))

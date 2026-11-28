@@ -1,6 +1,6 @@
-# Segretario MMG - setup pilota 0.16.41
+# Segretario MMG - setup pilota 0.16.42
 
-Il file SegretarioMMG-Setup-0.16.41.exe e un installer unico Windows x64 che richiede elevazione UAC. E una build pilota compilata e controllata, NON ancora collaudata con installazione completa su un Windows pulito. Non e firmata digitalmente.
+Il file SegretarioMMG-Setup-0.16.42.exe e un installer unico Windows x64 che richiede elevazione UAC. E una build pilota compilata e controllata, NON ancora collaudata con installazione completa su un Windows pulito. Non e firmata digitalmente.
 
 ## Cosa fa
 
@@ -71,10 +71,16 @@ Log setup e aggiornamenti: %LOCALAPPDATA%\SegretarioMMG. Il fallimento del setup
 
 Download: MB ricevuti, totale e barra percentuale se la dimensione e comunicata dal server. Altrimenti vengono mostrati solo i MB ricevuti. Per ricevere questa nuova visualizzazione anche nel programma di aggiornamento, esegui il setup aggiornato.
 
-## Interfaccia installer 0.16.41
+## Interfaccia installer 0.16.42
 
 Finestra grafica separata dal processo di lavoro: fase, tempo trascorso, indicatore animato e barra riferita al singolo download. Ollama e modello mostrano MB e totale quando disponibile; nelle attese la barra e animata. L'animazione indica che l'interfaccia e reattiva, non garantisce che un server remoto stia avanzando.
 
 Il primo avviso richiede di salvare i lavori: dopo OK vengono chiusi forzatamente solo i processi Chrome del proprio account. Annulla non chiude Chrome. Il primo avvio Ollama viene nascosto tramite il marker upgraded usato dall'installer ufficiale; successivamente si usa il servizio serve nascosto. Nessuna modifica all'avvio di altri programmi.
 
 Verificati compilazione e resa grafica della finestra senza avviare l'installazione, stream modello sintetici (successo, errore e interruzione), consenso e isolamento dei processi Chrome con mock. Serve ancora il collaudo completo su un PC di test.
+
+## Aggiornamento in console 0.16.42
+
+Il collegamento Aggiorna-Segretario mostra versione installata e disponibile, fasi numerate, download in MB decimali (1 MB = 1.000.000 byte), barra, residuo, velocita media e tempo stimato. Le stime dipendono dalla connessione. Se il server non comunica il totale, mostra MB ricevuti e velocita senza inventare una percentuale. Errori e percorso log restano leggibili fino a INVIO; gli avvii automatici non attendono input. Chrome non viene chiuso automaticamente.
+
+Per ricevere il nuovo updater automatico e il collegamento manuale sui PC gia installati, eseguire questo setup una volta. Il vecchio updater aggiorna soltanto l'estensione. In alternativa, per il solo aggiornamento manuale scaricare SegretarioMMG-Aggiorna-0.16.42.zip dalla release, estrarlo completamente e avviare Aggiorna-Segretario.bat. Il pacchetto contiene solo gli script di update e non installa Ollama o modelli; non sostituisce l'updater automatico gia installato. Non eseguire il BAT direttamente dentro l'archivio ZIP.

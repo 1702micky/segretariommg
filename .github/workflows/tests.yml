@@ -38,5 +38,7 @@ jobs:
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           python tests/download-progress.test.py
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          python tests/updater-console.test.py
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
           python tests/setup-ui.test.py
           exit $LASTEXITCODE

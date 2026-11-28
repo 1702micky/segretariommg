@@ -131,10 +131,10 @@ try {
     @("Segretario MMG - installato in $Root", $(if($model){"Modello: $model"}else{"Modello: scegli un modello gia installato nella schermata iniziale di Segretario MMG."}), "ID Chrome: $extensionId",'', '1. Apri chrome://extensions', '2. Attiva Modalita sviluppatore.', '3. Carica estensione non pacchettizzata e seleziona C:\AI\segretario-mmg-extension.', '4. Apri Eumed e seleziona il modello nella schermata iniziale.', '', 'Non spostare la cartella. Non ricaricare durante inserimenti.', 'Aggiornamenti: automatici al logon soltanto con Chrome completamente chiuso.', 'Se Chrome era aperto, chiudilo e avvia Aggiorna-Segretario dal collegamento.', 'Se il repository e privato o senza release, il controllo non scarica nulla.', "Log: $State")|Set-Content -Encoding UTF8 $help
     $shell=New-Object -ComObject WScript.Shell
     $link=$shell.CreateShortcut((Join-Path ([Environment]::GetFolderPath('Desktop')) 'Aggiorna-Segretario.lnk'))
-    $link.TargetPath='powershell.exe';$link.Arguments='-NoProfile -ExecutionPolicy Bypass -File "'+(Join-Path $runtime 'Update.ps1')+'"';$link.Save()
+    $link.TargetPath='powershell.exe';$link.Arguments='-NoProfile -ExecutionPolicy Bypass -File "'+(Join-Path $runtime 'Update.ps1')+'" -Interactive';$link.Save()
     # Record only owned files: uninstall must preserve documents and development files.
     $owned=@($inventory.files|ForEach-Object path)+@('COME-INIZIARE.txt','installation-defaults.json')
-    $owned+=@('Startup.ps1','Update.ps1','settings.json','Download.Helpers.ps1','Uninstall.Helpers.ps1','Uninstall.ps1')|ForEach-Object {'installer/runtime/'+$_}
+    $owned+=@('Startup.ps1','Update.ps1','settings.json','Download.Helpers.ps1','Update.Console.Helpers.ps1','Aggiorna-Segretario.bat','Uninstall.Helpers.ps1','Uninstall.ps1')|ForEach-Object {'installer/runtime/'+$_}
     $recordFile=Join-Path $State 'installation.json'
     if(Test-Path -LiteralPath $recordFile){$owned+=@((Get-Content -LiteralPath $recordFile -Raw|ConvertFrom-Json).files)}
     . (Join-Path $runtime 'Uninstall.Helpers.ps1')

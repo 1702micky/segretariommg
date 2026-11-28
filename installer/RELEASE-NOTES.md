@@ -1,4 +1,7 @@
-Segretario MMG 0.16.41
+Segretario MMG 0.16.42
 
-- Gli avvisi sugli intervalli normali proposti dall'IA vengono mostrati solo quando il relativo risultato e stato accettato e associato alla riga Eumed.
-- Nel caso di amilasi pancreatica presente nel referto ma non prescritta, l'amilasi totale sierica resta correttamente non trovata invece di ricevere un avviso sui limiti della voce pancreatica.
+- Aggiornamento manuale in console: versione installata e nuova, sei fasi, barra download in MB, MB residui, velocita e tempo stimato.
+- Esito visibile anche quando non serve aggiornare o Chrome e aperto; pausa finale soltanto negli avvii manuali.
+- Errori visibili, codice di uscita e log; verifica dei file installati e ripristino in caso di errore.
+- BAT incluso nel runtime e pacchetto Aggiorna separato per avvio manuale senza reinstallare i componenti IA.
+- Per aggiornare il collegamento e l'updater automatico dei PC gia installati eseguire il setup 0.16.42 una volta: il vecchio updater aggiorna solo l'estensione.

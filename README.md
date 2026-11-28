@@ -8,7 +8,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/1702micky/segretariommg/releases/download/v0.16.41/SegretarioMMG-Setup-0.16.41.exe"><strong>↓ Scarica per Windows</strong></a>
+  <a href="https://github.com/1702micky/segretariommg/releases/download/v0.16.42/SegretarioMMG-Setup-0.16.42.exe"><strong>↓ Scarica per Windows</strong></a>
   &nbsp; · &nbsp;
   <a href="#inizia-in-quattro-passaggi">Come si installa</a>
   &nbsp; · &nbsp;
@@ -17,7 +17,7 @@
 
 <p align="center">Windows 64 bit · Google Chrome · IA sul tuo computer</p>
 
-> **Versione pilota 0.16.41.** Prima dell’uso abituale, prova il programma e controlla i risultati in Eumed. Il programma di installazione non è ancora firmato digitalmente.
+> **Versione pilota 0.16.42.** Prima dell’uso abituale, prova il programma e controlla i risultati in Eumed. Il programma di installazione non è ancora firmato digitalmente.
 
 ## Cosa puoi fare
 
@@ -51,7 +51,7 @@ Sono riconosciuti anche i referti con **ES. EMOCROMOCITOMETRICO** in italiano e 
 
 ### 1 · Scarica e avvia il setup
 
-[**Scarica Segretario MMG per Windows**](https://github.com/1702micky/segretariommg/releases/download/v0.16.41/SegretarioMMG-Setup-0.16.41.exe)
+[**Scarica Segretario MMG per Windows**](https://github.com/1702micky/segretariommg/releases/download/v0.16.42/SegretarioMMG-Setup-0.16.42.exe)
 
 Salva i lavori aperti in Chrome e chiudi gli eventuali lavori IA in corso. Il primo avviso del setup spiega che **premendo OK Chrome verrà chiuso automaticamente**, anche in background, per il tuo account: i dati non salvati potrebbero andare persi. Annullando, Chrome resta aperto. Non riaprirlo fino al messaggio finale. I download possono richiedere anche un'ora o più. Avvia il file e autorizza la richiesta di Windows. Usa lo stesso account amministratore con cui lavori in Chrome.
 
@@ -132,6 +132,10 @@ Nella schermata iniziale, vicino alla scelta del modello IA, trovi la **versione
 Se lasci attiva l’opzione del setup, il programma cerca nuove versioni all’accesso Windows e ogni ora. Gli aggiornamenti dell’estensione vengono applicati **soltanto quando Chrome è completamente chiuso**; altrimenti vengono rimandati.
 
 Alla riapertura Chrome carica la versione aggiornata. Non devi scaricare manualmente lo ZIP di aggiornamento. Per controllare subito puoi usare il collegamento **Aggiorna-Segretario** creato sul desktop, dopo aver chiuso Chrome.
+
+La nuova finestra di aggiornamento mostra **versione attuale → nuova versione**, download in **MB**, barra percentuale, MB residui, velocità e tempo stimato. Seguono controllo dei file, backup e installazione. Alla fine resta aperta fino a INVIO, anche se non ci sono aggiornamenti o si verifica un errore.
+
+**Hai già una versione precedente?** Per aggiornare anche il programma di aggiornamento e il collegamento desktop, esegui il nuovo setup una volta. Puoi scegliere di non scaricare un modello IA. Per usare soltanto la nuova console manuale, scarica il [pacchetto Aggiorna](https://github.com/1702micky/segretariommg/releases/download/v0.16.42/SegretarioMMG-Aggiorna-0.16.42.zip), estrailo in una cartella e avvia **Aggiorna-Segretario.bat** dopo aver chiuso Chrome. Il pacchetto manuale non sostituisce il vecchio controllo automatico.
 
 L’aggiornamento automatico riguarda l’estensione. Modelli IA, Ollama e programma di installazione hanno una gestione separata.
 
