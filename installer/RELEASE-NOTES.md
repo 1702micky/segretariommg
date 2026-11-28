@@ -1,4 +1,4 @@
-Segretario MMG 0.16.39
+Segretario MMG 0.16.40
 
-- Nei referti AOU, i tre campioni di sangue occulto fecale vengono riconosciuti separatamente e l'anteprima indica l'esito qualitativo da compilare manualmente in ciascuna riga Eumed.
-- I cut-off e gli intervalli di riferimento descrittivi non diventano risultati o nuovi esami. Gli avvisi IA duplicati per un risultato numerico gia letto dal parser vengono soppressi.
+- I referti lunghi preparati nel passaggio residuo, incluso il PSA reflex da testo OCR, vengono ora inviati alla scrittura anche quando il loro testo e stato ricostruito senza un'etichetta di provenienza IA.
+- Il riepilogo distingue i referti lunghi preparati da quelli realmente compilati in Eumed e segnala per nome quelli rimasti senza scrittura.

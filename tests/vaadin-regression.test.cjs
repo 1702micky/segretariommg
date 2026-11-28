@@ -798,6 +798,15 @@ test('AOU stool occult blood samples retain ordinal and qualitative result witho
   assert.equal(c.isVerifiedUnprescribedWarning({text:'P-ALT * 8 U/L 7 - 35'},numeric),false);
 });
 
+test('a prepared PSA long report from the residual pass is queued even when its text was assembled without an AI tag', () => {
+  const c=load(['filterPostQwenWriteSet']);
+  const urine={exam:'URINE ESAME COMPLETO',kind:'URINE',text:'Esame urine',workflowSource:'parser'};
+  const psa={exam:'ANTIGENE PROSTATICO SPECIFICO PSA REFLEX',kind:'PSA_REFLEX',text:'PSA totale: 4,338 ug/L\nPSA libero: 0,388 ug/L',workflowSource:'parser'};
+  const result=c.filterPostQwenWriteSet({results:[],longReports:[urine,psa]},new Set([urine.exam]));
+  assert.deepEqual(Array.from(result.longReports,x=>x.exam),[psa.exam]);
+  assert.equal(c.filterPostQwenWriteSet({results:[],longReports:[urine]},new Set([urine.exam])).longReports.length,0);
+});
+
 test('unprescribed preview lists all three qualitative stool outcomes for manual entry', async () => {
   const c=inlineLabContext();
   load(['extractSimpleNumericReport','extractUnprescribedDeterministicRaw','extractPaddleTabularResults',

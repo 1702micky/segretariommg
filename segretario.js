@@ -3,7 +3,7 @@
 
   // ============================================================
   // SEGRETARIO MMG
-  // Versione 0.16.39
+  // Versione 0.16.40
   //
   // - Estrazione con Qwen 3.5 4B locale
   // - Comunicazione diretta Ollama via service worker Chrome
@@ -17762,7 +17762,7 @@ button:disabled {
       (merged?.longReports || [])
         .filter(item =>
           !strong.has(item?.exam) &&
-          item?.workflowSource === "qwen"
+          !!String(item?.text || "").trim()
         );
 
     const completedCompositeKeys =
@@ -18422,6 +18422,13 @@ button:disabled {
         (qwenNumeric.completed || []).length +
         (qwenLong.completed || []).length;
 
+      const writtenLongExams = new Set([
+        ...(strongWriter.longReports.completed || []),
+        ...(qwenLong.completed || [])
+      ].map(item => item.exam));
+      const unwrittenLongReports = (merged.longReports || [])
+        .filter(item => !writtenLongExams.has(item.exam));
+
       resultsBox.innerHTML =
         `<div class="summary">
           <b>INSERIMENTO AUTOMATICO completato</b><br>
@@ -18475,7 +18482,10 @@ button:disabled {
               ? `ℹ ${stats.qwenNoiseIgnored} letture IA discordanti ignorate perché il parser deterministico era affidabile<br>`
               : ""
           }
-          ✓ ${merged.longReports.length} referti lunghi preparati<br>
+          ✓ ${merged.longReports.length} referti lunghi preparati · ${writtenLongExams.size} compilati in Eumed<br>
+          ${unwrittenLongReports.length
+            ? `⚠ ${unwrittenLongReports.length} referti lunghi preparati ma non compilati: ${unwrittenLongReports.map(item => escapeHtml(item.exam)).join(" · ")}<br>`
+            : ""}
           ${
             strongWriter.composite.completed.length +
               qwenComposite.completed.length
